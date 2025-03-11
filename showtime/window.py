@@ -424,6 +424,26 @@ class ShowtimeWindow(Adw.ApplicationWindow):
 
         dialog.open(self, callback=self.__choose_video_cb)
 
+    def open_url(self) -> None:
+        """Opens URL from clipboard."""
+        clipboard = Gdk.Display.get_default().get_primary_clipboard()
+        clipboard.read_text_async(
+            None,
+            callback=self.__open_url_cb
+        )
+
+    def __open_url_cb(self, clipboard: Gdk.Clipboard, res: Gio.AsyncResult) -> None:
+        try:
+            gfile = Gio.File.new_for_uri(uri=clipboard.read_text_finish(res))
+        except GLib.Error:
+            return
+
+        if not gfile or not (app := self.get_application()):
+            return
+
+        app.save_play_position(self)
+        self.play_video(gfile)
+
     def choose_subtitles(self) -> None:
         """Opens a file dialog to pick a subtitle."""
         (file_filter := Gtk.FileFilter()).set_name(_("Subtitles"))
