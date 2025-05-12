@@ -163,6 +163,11 @@ class Application(Adw.Application):
             ("<primary>o",),
         )
         self.create_action(
+            "open-url-video",
+            lambda *_: (self.win.open_url() if self.win else ...),
+            ("<primary>u",),
+        )
+        self.create_action(
             "show-in-files",
             lambda *_: (
                 Gtk.FileLauncher.new(
