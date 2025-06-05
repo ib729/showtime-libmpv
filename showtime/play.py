@@ -29,9 +29,14 @@ def gst_play_setup(
 
     # OpenGL doesn't work on macOS properly
     if paintable.props.gl_context and system != "Darwin":
-        gl_sink = Gst.ElementFactory.make("glsinkbin")
-        gl_sink.props.sink = paintable_sink  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-        sink = gl_sink
+        paintable_caps = paintable_sink.get_pad_template("sink").caps
+        yuv_caps = Gst.Caps('video/x-raw,format=I420')
+
+        # Use native GTK4 YUV support if possible
+        if paintable_caps.intersect(yuv_caps).is_empty():
+            gl_sink = Gst.ElementFactory.make("glsinkbin")
+            gl_sink.props.sink = paintable_sink  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+            sink = gl_sink
 
     play = GstPlay.Play(
         video_renderer=GstPlay.PlayVideoOverlayVideoRenderer.new_with_sink(None, sink)
