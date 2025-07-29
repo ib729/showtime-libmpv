@@ -51,7 +51,7 @@ class Application(Adw.Application):
     def __init__(self) -> None:
         super().__init__(
             application_id=APP_ID,
-            flags=Gio.ApplicationFlags.HANDLES_OPEN,
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE | Gio.ApplicationFlags.HANDLES_OPEN,
         )
 
         self.inhibit_cookies = {}
@@ -146,10 +146,17 @@ class Application(Adw.Application):
 
         Adw.StyleManager.get_default().props.color_scheme = Adw.ColorScheme.PREFER_DARK
 
-        self._create_action("new-window", lambda *_: self.activate(), ("<primary>n",))
+        self._create_action("new-window", lambda *_: self.create_window(), ("<primary>n",))
         self._create_action("quit", lambda *_: self.quit(), ("<primary>q",))
 
-    def do_activate(self, gfile: Gio.File | None = None) -> None:
+    def do_activate(self) -> None:
+        """Present main window."""
+        if not self.props.active_window:
+            self.create_window()
+
+        self.props.active_window.present()
+
+    def create_window(self, gfile: Gio.File | None = None) -> None:
         """Create a new window, set up MPRIS."""
         win = Window(
             application=self,  # pyright: ignore[reportAttributeAccessIssue]
@@ -216,25 +223,36 @@ class Application(Adw.Application):
             self.mpris_active = True
             MPRIS(self)
 
-    def do_open(self, gfiles: Sequence[Gio.File], _n_files: int, _hint: str) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+    def do_open(self, gfiles: Sequence[Gio.File], _n_files: int, hint: str) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         """Open the given files."""
-        for gfile in gfiles:
-            self.do_activate(gfile)
+        if hint == "new-window":
+            for gfile in gfiles:
+                self.create_window(gfile)
+        else:
+            if self.props.active_window:
+                self.props.active_window.play_video(gfiles[0])
+                self.props.active_window.present()
+            else:
+                self.create_window(gfiles[0])
 
-    def do_handle_local_options(self, options: GLib.VariantDict) -> int:
-        """Handle local command line arguments."""
-        self.register()  # This is so props.is_remote works
-        if self.props.is_remote:
-            if options.contains("new-window"):
-                return -1
+    def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
+        options: GLib.VariantDict = command_line.get_options_dict()
+        new_window: bool = options.contains("new-window")
+        file_paths: list[str] = command_line.get_arguments()[1:]
 
-            logger.warning(
-                "Showtime is already running. "
-                "To open a new window, run the app with --new-window."
-            )
-            return 0
+        if file_paths:
+            files: list[Gio.File] = [
+                command_line.create_file_for_arg(arg) for arg in file_paths
+            ]
+            hint: str = "new-window" if new_window else ""
+            self.open(files, hint)
+        else:
+            if new_window:
+                self.activate_action("new-window")
+            else:
+                self.activate()
 
-        return -1
+        return 0
 
     def _create_action(
         self,

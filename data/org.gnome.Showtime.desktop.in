@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Video Player
 Comment=Play videos
-Exec=showtime --new-window %U
+Exec=showtime %U
 Icon=@APP_ID@
 Terminal=false
 Type=Application
