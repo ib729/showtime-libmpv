@@ -324,7 +324,7 @@ class Window(Adw.ApplicationWindow):
         self.media_info_updated = False
         self.stack.props.visible_child = self.video_page
         self.placeholder_stack.props.visible_child = self.error_status_page
-        self.select_subtitles(0)
+        self.select_subtitles(GLib.MAXUINT16)
         self.rate = "1.0"
 
         self.play.props.uri = uri
@@ -948,7 +948,7 @@ class Window(Adw.ApplicationWindow):
         subs_action = Gio.SimpleAction.new_stateful(
             "select-subtitles",
             GLib.VariantType.new("q"),
-            GLib.Variant.new_uint16(0),
+            GLib.Variant.new_uint16(GLib.MAXUINT16),
         )
         subs_action.connect("activate", self._on_subtitles_selected)
         self.add_action(subs_action)
