@@ -73,7 +73,7 @@ class ApplicationDelegate(NSObject):
         if not showtime.app:
             return
 
-        showtime.app.do_activate()
+        showtime.app.create_window()
 
     def open_(self, *_args: Any) -> None:
         """Show the file chooser for opening a video."""

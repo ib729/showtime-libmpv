@@ -857,7 +857,7 @@ class Window(Adw.ApplicationWindow):
         if not (app := self.props.application):
             return
 
-        cast("Application", app).do_activate(self._playing_gfile)
+        cast("Application", app).create_window(self._playing_gfile)
         self.close()
 
     @Gtk.Template.Callback()
