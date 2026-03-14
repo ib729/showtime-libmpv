@@ -1135,13 +1135,17 @@ class Window(Adw.ApplicationWindow):
         action: Gio.SimpleAction,
         state: GLib.Variant,
     ) -> None:
-        action.props.state = state
+        action.set_property("state", state)
 
         if (index := state.get_uint16()) == GLib.MAXUINT16:
             self.play.set_subtitle_track_enabled(False)
         else:
             self.play.set_subtitle_track(index)
             self.play.set_subtitle_track_enabled(True)
+        "Fix error:  GStreamer error: clock problem. A lot of buffers are being dropped"
+        current_pos = self.play.get_position()
+        self.play.seek(current_pos)
+        self.unpause()
 
     def _on_language_selected(
         self,
@@ -1150,6 +1154,10 @@ class Window(Adw.ApplicationWindow):
     ) -> None:
         action.props.state = state
         self.play.set_audio_track(state.get_uint16())
+        "Fix error:  GStreamer error: clock problem. A lot of buffers are being dropped"
+        current_pos = self.play.get_position()
+        self.play.seek(current_pos)
+        self.unpause()
 
     def _on_toggle_loop(
         self,
