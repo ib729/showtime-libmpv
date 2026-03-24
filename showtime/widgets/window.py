@@ -1135,7 +1135,7 @@ class Window(Adw.ApplicationWindow):
         action: Gio.SimpleAction,
         state: GLib.Variant,
     ) -> None:
-        action.set_property("state", state)
+        action.props.state = state
 
         if (index := state.get_uint16()) == GLib.MAXUINT16:
             self.play.set_subtitle_track_enabled(False)
