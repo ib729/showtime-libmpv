@@ -61,7 +61,8 @@ def _is_qtdemux_unknown_fourcc_message(msg: Gst.Message) -> bool:
     know the fourcc and emit proper caps for it. These messages are
     therefore not actionable from the missing-plugin UI.
     """
-    if not (structure := msg.get_structure()):
+    structure = msg.get_structure()
+    if not structure or not structure.has_field("get_caps"):
         return False
 
     has_detail, caps = structure.get_caps("detail")  # pyright: ignore[reportAttributeAccessIssue]
