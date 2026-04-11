@@ -251,7 +251,7 @@ class Application(Adw.Application):
         else:
             # Gtk.Application already uninhibited when the window was removed.
             self.inhibit_cookies.pop(win, None)
-        win.play.stop()
+        win.teardown_playback()
 
     def _on_window_removed(self, _obj, win: Window) -> None:  # pyright: ignore[reportAttributeAccessIssue]
         self._cleanup_window(win, uninhibit_manually=False)
