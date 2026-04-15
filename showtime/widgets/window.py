@@ -1125,10 +1125,11 @@ class Window(Adw.ApplicationWindow):
 
         if not gfile:
             return
-
+        self.pipeline.set_state(Gst.State.NULL)
         self.play.props.suburi = gfile.get_uri()
         self.select_subtitles(0)
         logger.debug("External subtitle added: %s", gfile.get_uri())
+        self.unpause()
 
     def _on_subtitles_selected(
         self,
