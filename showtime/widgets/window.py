@@ -410,7 +410,29 @@ class Window(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:
-        self.play_video(gfile)
+
+        file_content_type = gfile.query_info(
+            "standard::content-type", Gio.FileQueryInfoFlags.NONE, None
+        ).get_content_type()
+        subtitle_mime_types = (
+            "text/plain",
+            "text/vtt",
+            "text/srt",
+            "application/x-subrip",
+            "application/x-srt",
+            "application/ttml+xml",
+            "application/dfxp+xml",
+            "application/x-subviewer",
+            "application/x-microdvd",
+            "application/x-sami",
+            "application/x-ass",
+            "application/x-ssa",
+        )
+        "Only try to play subtitles when already playing a video."
+        if file_content_type in subtitle_mime_types and self._playing_gfile:
+            self._on_drop_subtitles(gfile)
+        else:
+            self.play_video(gfile)
 
     def _get_previous_play_position(self) -> float | None:
         if not (uri := self.play.props.uri):
@@ -1129,6 +1151,15 @@ class Window(Adw.ApplicationWindow):
         self.play.props.suburi = gfile.get_uri()
         self.select_subtitles(0)
         logger.debug("External subtitle added: %s", gfile.get_uri())
+        self.unpause()
+
+    def _on_drop_subtitles(self, gfile: Gio.File) -> None:
+        # TODO: Crash when video already have embed subtitles, only work in videos
+        # without subtitles
+        self.pipeline.set_state(Gst.State.NULL)
+        self.play.props.suburi = gfile.get_uri()
+        self.select_subtitles(0)
+        logger.debug("External subtitle added %s", gfile.get_uri())
 
     def _on_subtitles_selected(
         self,
