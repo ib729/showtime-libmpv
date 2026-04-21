@@ -29,12 +29,17 @@ class Options(Adw.Bin):
 
     language_menu: Gio.Menu = Gtk.Template.Child()
     subtitles_menu: Gio.Menu = Gtk.Template.Child()
-    brightness: Gtk.Scale = Gtk.Template.Child()
+    brightness_input: Gtk.Scale = Gtk.Template.Child()
+    brightness = 1.0
+    saturation_input: Gtk.Scale = Gtk.Template.Child()
+    saturation = 1.0
 
     rotate_left = GObject.Signal()
     rotate_right = GObject.Signal()
     brightness_change = GObject.Signal(arg_types=[float])
     reset_brightness = GObject.Signal()
+    saturation_change = GObject.Signal(arg_types=[float])
+    reset_saturation = GObject.Signal()
 
     rate = GObject.Property(type=str)
 
@@ -152,6 +157,7 @@ class Options(Adw.Bin):
     def _brightness_change(self, scale: Gtk.Scale) -> None:
         adjustment = scale.get_adjustment()
         value = adjustment.get_value()
+        self.brightness = value
         self.emit(
             "brightness-change",
             value,
@@ -160,4 +166,17 @@ class Options(Adw.Bin):
     @Gtk.Template.Callback()
     def _reset_brightness(self, *_args) -> None:
         # Automatically triggers brightness-change
-        self.brightness.set_value(1.0)
+        self.brightness = 1.0
+        self.brightness_input.set_value(1.0)
+
+    @Gtk.Template.Callback()
+    def _saturation_change(self, scale: Gtk.Scale) -> None:
+        adjustement = scale.get_adjustment()
+        value = adjustement.get_value()
+        self.saturation = value
+        self.emit("saturation-change", value)
+
+    @Gtk.Template.Callback()
+    def _reset_saturation(self, *_args) -> None:
+        self.saturation = 1.0
+        self.saturation_input.set_value(1.0)
