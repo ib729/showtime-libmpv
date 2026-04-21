@@ -413,7 +413,9 @@ class Window(Adw.ApplicationWindow):
         filters_css = f"""
         picture {{
             filter:
-            saturate({self.options.saturation}) brightness({self.options.brightness});
+            saturate({self.options.saturation})
+            brightness({self.options.brightness})
+            contrast({self.options.contrast});
         }}
         """
         css_provider = Gtk.CssProvider()
@@ -441,6 +443,14 @@ class Window(Adw.ApplicationWindow):
     @Gtk.Template.Callback()
     def _reset_brightness(self, _args) -> None:
         self.emit("brightness-change", 1.0)
+
+    @Gtk.Template.Callback()
+    def _contrast_change(self, _args, _value) -> None:
+        self._apply_video_filters()
+
+    @Gtk.Template.Callback()
+    def _reset_contrast(self, _args) -> None:
+        self.emit("contrast-change", 1.0)
 
     @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:

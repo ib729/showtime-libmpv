@@ -33,6 +33,8 @@ class Options(Adw.Bin):
     brightness = 1.0
     saturation_input: Gtk.Scale = Gtk.Template.Child()
     saturation = 1.0
+    contrast_input: Gtk.Scale = Gtk.Template.Child()
+    contrast = 1.0
 
     rotate_left = GObject.Signal()
     rotate_right = GObject.Signal()
@@ -40,6 +42,8 @@ class Options(Adw.Bin):
     reset_brightness = GObject.Signal()
     saturation_change = GObject.Signal(arg_types=[float])
     reset_saturation = GObject.Signal()
+    contrast_change = GObject.Signal(arg_types=[float])
+    reset_contrast = GObject.Signal()
 
     rate = GObject.Property(type=str)
 
@@ -180,3 +184,15 @@ class Options(Adw.Bin):
     def _reset_saturation(self, *_args) -> None:
         self.saturation = 1.0
         self.saturation_input.set_value(1.0)
+
+    @Gtk.Template.Callback()
+    def _contrast_change(self, scale: Gtk.Scale) -> None:
+        adjustement = scale.get_adjustment()
+        value = adjustement.get_value()
+        self.contrast = value
+        self.emit("saturation-change", value)
+
+    @Gtk.Template.Callback()
+    def _reset_contrast(self, *_args) -> None:
+        self.contrast = 1.0
+        self.contrast_input.set_value(1.0)
