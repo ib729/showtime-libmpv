@@ -40,6 +40,10 @@ class Application(Adw.Application):
     volume_changed = GObject.Signal(name="volume-changed")
     rate_changed = GObject.Signal(name="rate-changed")
     seeked = GObject.Signal(name="seeked")
+    brightness_change = GObject.Signal(
+        name="brightness-change",
+        arg_types=[float],
+    )
 
     def __init__(self) -> None:
         super().__init__(

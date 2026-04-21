@@ -409,6 +409,30 @@ class Window(Adw.ApplicationWindow):
                 props.orientation += 1
 
     @Gtk.Template.Callback()
+    def _brightness_change(self, _args, value) -> None:
+        # Attach CSS is more resource efficent than use self.play.set_color_balance
+        css_styles = f"""
+        picture {{
+            filter:  brightness({value});
+        }}
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css_styles)
+        default_display = Gdk.Display.get_default()
+        if default_display is None:
+            logger.error("App is unable to get default display")
+            return
+        Gtk.StyleContext.add_provider_for_display(
+            default_display,
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+    @Gtk.Template.Callback()
+    def _reset_brightness(self, _args) -> None:
+        self.emit("brightness-change", 1.0)
+
+    @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:
         self.play_video(gfile)
 

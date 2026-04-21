@@ -29,9 +29,12 @@ class Options(Adw.Bin):
 
     language_menu: Gio.Menu = Gtk.Template.Child()
     subtitles_menu: Gio.Menu = Gtk.Template.Child()
+    brightness: Gtk.Scale = Gtk.Template.Child()
 
     rotate_left = GObject.Signal()
     rotate_right = GObject.Signal()
+    brightness_change = GObject.Signal(arg_types=[float])
+    reset_brightness = GObject.Signal()
 
     rate = GObject.Property(type=str)
 
@@ -144,3 +147,17 @@ class Options(Adw.Bin):
     @Gtk.Template.Callback()
     def _rotate_right(self, *_args) -> None:
         self.emit("rotate-right")
+
+    @Gtk.Template.Callback()
+    def _brightness_change(self, scale: Gtk.Scale) -> None:
+        adjustment = scale.get_adjustment()
+        value = adjustment.get_value()
+        self.emit(
+            "brightness-change",
+            value,
+        )
+
+    @Gtk.Template.Callback()
+    def _reset_brightness(self, *_args) -> None:
+        # Automatically triggers brightness-change
+        self.brightness.set_value(1.0)

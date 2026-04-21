@@ -217,6 +217,8 @@ template $Window: Adw.ApplicationWindow {
                       rate: bind template.rate bidirectional no-sync-create;
                       rotate-left => $_rotate_left();
                       rotate-right => $_rotate_right();
+                      brightness-change => $_brightness_change();
+                      reset-brightness => $_reset_brightness();
                     }
                   }
 

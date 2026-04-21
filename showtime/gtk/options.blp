@@ -44,7 +44,68 @@ template $Options: Adw.Bin {
             custom: "speed";
           }
         }
+
+        section {
+          item {
+            custom: "brightness";
+          }
+        }
+
+        section {
+          item {
+            custom: "";
+          }
+        }
       };
+
+      [brightness]
+      Box {
+        margin-top: 9;
+        margin-bottom: 9;
+        margin-start: 12;
+        margin-end: 12;
+        spacing: 12;
+        orientation: vertical;
+        width-request: 240;
+
+        Label {
+          halign: start;
+          margin-start: 6;
+          label: _("Brightness");
+
+          styles [
+            "heading",
+          ]
+        }
+
+        Adw.WrapBox {
+          Scale brightness {
+            value-changed => $_brightness_change();
+            orientation: horizontal;
+            hexpand: true;
+            // Default use max brightness
+            adjustment: Gtk.Adjustment {
+              lower: 0.0;
+              upper: 2.0;
+              value: 1.0;
+            };
+
+            draw-value: true;
+            digits: 2;
+            value-pos: right;
+          }
+
+          Button {
+            icon-name: "object-rotate-left-symbolic";
+            tooltip-text: _("Reset Brightness");
+            clicked => $_reset_brightness();
+
+            styles [
+              "flat",
+            ]
+          }
+        }
+      }
 
       [speed]
       Box {
