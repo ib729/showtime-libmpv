@@ -9,18 +9,19 @@ template $Filters: Adw.Bin {
     direction: up;
 
     popover: PopoverMenu popover_filters {
-      flags: nested;
       menu-model: menu {
         section {
           item {
             custom: "brightness";
           }
         }
+
         section {
           item {
             custom: "saturation";
           }
         }
+
         section {
           item {
             custom: "contrast";
@@ -41,7 +42,10 @@ template $Filters: Adw.Bin {
           halign: start;
           margin-start: 6;
           label: _("Brightness");
-          styles ["heading"]
+
+          styles [
+            "heading",
+          ]
         }
 
         Adw.WrapBox {
@@ -49,11 +53,13 @@ template $Filters: Adw.Bin {
             value-changed => $_brightness_change();
             orientation: horizontal;
             hexpand: true;
+
             adjustment: Gtk.Adjustment {
               lower: 0.0;
               upper: 2.0;
               value: 1.0;
             };
+
             draw-value: true;
             digits: 2;
             value-pos: right;
@@ -63,7 +69,10 @@ template $Filters: Adw.Bin {
             icon-name: "edit-undo-symbolic";
             tooltip-text: _("Reset Brightness");
             clicked => $_reset_brightness();
-            styles ["flat"]
+
+            styles [
+              "flat",
+            ]
           }
         }
       }
@@ -82,7 +91,10 @@ template $Filters: Adw.Bin {
           halign: start;
           margin-start: 6;
           label: _("Saturation");
-          styles ["heading"]
+
+          styles [
+            "heading",
+          ]
         }
 
         Adw.WrapBox {
@@ -90,11 +102,13 @@ template $Filters: Adw.Bin {
             value-changed => $_saturation_change();
             orientation: horizontal;
             hexpand: true;
+
             adjustment: Gtk.Adjustment {
               lower: 0.0;
               upper: 2.0;
               value: 1.0;
             };
+
             draw-value: true;
             digits: 2;
             value-pos: right;
@@ -104,7 +118,10 @@ template $Filters: Adw.Bin {
             icon-name: "edit-undo-symbolic";
             tooltip-text: _("Reset Saturation");
             clicked => $_reset_saturation();
-            styles ["flat"]
+
+            styles [
+              "flat",
+            ]
           }
         }
       }
@@ -123,7 +140,10 @@ template $Filters: Adw.Bin {
           halign: start;
           margin-start: 6;
           label: _("Contrast");
-          styles ["heading"]
+
+          styles [
+            "heading",
+          ]
         }
 
         Adw.WrapBox {
@@ -131,11 +151,13 @@ template $Filters: Adw.Bin {
             value-changed => $_contrast_change();
             orientation: horizontal;
             hexpand: true;
+
             adjustment: Gtk.Adjustment {
               lower: 0.0;
               upper: 2.0;
               value: 1.0;
             };
+
             draw-value: true;
             digits: 2;
             value-pos: right;
@@ -145,10 +167,22 @@ template $Filters: Adw.Bin {
             icon-name: "edit-undo-symbolic";
             tooltip-text: _("Reset Contrast");
             clicked => $_reset_contrast();
-            styles ["flat"]
+
+            styles [
+              "flat",
+            ]
           }
         }
       }
     };
+    accessibility {
+      label: _("Video filters");
+    }
+
+    styles [
+      "circular",
+      "highlighted",
+      "overlaid",
+    ]
   };
 }
