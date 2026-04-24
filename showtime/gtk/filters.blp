@@ -41,8 +41,9 @@ template $Filters: Adw.Bin {
         Label {
           halign: start;
           margin-start: 6;
-          label: _("Brightness");
-
+          label: _("_Brightness");
+          use-underline: true;
+          mnemonic-widget: brightness_input;
           styles [
             "heading",
           ]
@@ -53,6 +54,7 @@ template $Filters: Adw.Bin {
             value-changed => $_brightness_change();
             orientation: horizontal;
             hexpand: true;
+            can-focus: true;
 
             adjustment: Gtk.Adjustment {
               lower: 0.0;
@@ -92,7 +94,9 @@ template $Filters: Adw.Bin {
         Label {
           halign: start;
           margin-start: 6;
-          label: _("Saturation");
+          label: _("_Saturation");
+          use-underline: true;
+          mnemonic-widget: saturation_input;
 
           styles [
             "heading",
@@ -104,6 +108,7 @@ template $Filters: Adw.Bin {
             value-changed => $_saturation_change();
             orientation: horizontal;
             hexpand: true;
+            can-focus: true;
 
             adjustment: Gtk.Adjustment {
               lower: 0.0;
@@ -143,7 +148,9 @@ template $Filters: Adw.Bin {
         Label {
           halign: start;
           margin-start: 6;
-          label: _("Contrast");
+          label: _("_Contrast");
+          use-underline: true;
+          mnemonic-widget: contrast_input;
 
           styles [
             "heading",
@@ -155,6 +162,7 @@ template $Filters: Adw.Bin {
             value-changed => $_contrast_change();
             orientation: horizontal;
             hexpand: true;
+            can-focus: true;
 
             adjustment: Gtk.Adjustment {
               lower: 0.0;
