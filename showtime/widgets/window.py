@@ -44,6 +44,7 @@ from showtime.utils import (
 from .drag_overlay import DragOverlay
 from .options import Options
 from .sound_options import SoundOptions
+from .filters import Filters
 
 if TYPE_CHECKING:
     from showtime.main import Application
@@ -104,6 +105,8 @@ class Window(Adw.ApplicationWindow):
     end_timestamp_button: Gtk.Button = Gtk.Template.Child()
 
     sound_options: SoundOptions = Gtk.Template.Child()
+
+    video_filters: Filters = Gtk.Template.Child()
 
     options: Options = Gtk.Template.Child()
 
@@ -413,9 +416,9 @@ class Window(Adw.ApplicationWindow):
         filters_css = f"""
         picture {{
             filter:
-            saturate({self.options.saturation})
-            brightness({self.options.brightness})
-            contrast({self.options.contrast});
+            saturate({self.video_filters.saturation})
+            brightness({self.video_filters.brightness})
+            contrast({self.video_filters.contrast});
         }}
         """
         css_provider = Gtk.CssProvider()
