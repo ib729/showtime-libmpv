@@ -275,7 +275,17 @@ class Window(Adw.ApplicationWindow):
         ):
             widget.set_direction(Gtk.TextDirection.LTR)
 
+        self.gesture = Gtk.GestureClick.new()
+        self.gesture.set_button(0)  # 0 = any button, handle all
+        self.gesture.connect("pressed", self.on_gesture_pressed)
+        self.add_controller(self.gesture)
+
         self._create_actions()
+
+    def on_gesture_pressed(self, gesture, n_press, x, y):
+        logger.debug("GESTURE: %d %d %d", n_press, x, y)
+        if n_press == 2:
+            self.toggle_playback()
 
     def do_size_allocate(self, width: int, height: int, baseline: int) -> None:
         """Call to set the allocation, if the widget does not have a layout manager."""
