@@ -35,11 +35,16 @@ from showtime import (
 )
 from showtime.play import Messenger, gst_play_setup
 from showtime.utils import (
+    convert_bps_to_kbps,
+    format_sample_rate,
+    get_metadata,
     get_title,
     lookup_action,
     nanoseconds_to_timestamp,
     screenshot,
 )
+
+from .video_metadata import VideoMetadata
 
 from .drag_overlay import DragOverlay
 from .options import Options
@@ -914,6 +919,10 @@ class Window(Adw.ApplicationWindow):
         )
 
         self._create_action(
+            "show-video-metadata", lambda *_: self._show_video_metadata()
+        )
+
+        self._create_action(
             "toggle-fullscreen",
             lambda *_: self.set_property("fullscreened", not self.props.fullscreened),
             ("F11", "f"),
@@ -1047,6 +1056,31 @@ class Window(Adw.ApplicationWindow):
             about.props.debug_info_filename = log_file.name
 
         about.present(self)
+
+    def _show_video_metadata(self) -> None:
+        if self._playing_gfile is None:
+            return
+        video_metadata_dialog = VideoMetadata()
+        metadata = get_metadata(self._playing_gfile)
+
+        video_metadata_dialog.row_duration.set_subtitle(
+            nanoseconds_to_timestamp(self.play.get_duration())
+        )
+        video_metadata_dialog.row_title.set_subtitle(metadata.video_title)
+        video_metadata_dialog.row_artist.set_subtitle(metadata.file_artist)
+        video_metadata_dialog.row_audio_bitrate.set_subtitle(metadata.audio_bitrate)
+        video_metadata_dialog.row_audio_channel.set_subtitle(metadata.audio_channel)
+        video_metadata_dialog.row_description.set_subtitle(metadata.file_description)
+        video_metadata_dialog.row_audio_codec.set_subtitle(metadata.audio_codec)
+        video_metadata_dialog.row_video_bitrate.set_subtitle(metadata.video_bitrate)
+        video_metadata_dialog.row_comment.set_subtitle(metadata.file_comment)
+        video_metadata_dialog.row_framerate.set_subtitle(metadata.video_framerate)
+        video_metadata_dialog.row_resolution.set_subtitle(
+            f"{metadata.video_width} ˣ {metadata.video_height}"
+        )
+        video_metadata_dialog.row_sample_rate.set_subtitle(metadata.audio_sample_rate)
+        video_metadata_dialog.row_video_codec.set_subtitle(metadata.video_codec)
+        video_metadata_dialog.present(self)
 
     def _screenshot(self) -> None:
         if not (paintable := self.picture.props.paintable):

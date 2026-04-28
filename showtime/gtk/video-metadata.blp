@@ -1,0 +1,201 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $VideoMetadata: Adw.Dialog {
+  title: _("Video Metadata");
+  content-height: 800;
+  content-width: 360;
+
+  child: Gtk.Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {
+      width-request: 360;
+    }
+
+    Gtk.ScrolledWindow {
+      vexpand: true;
+      margin-top: 24;
+      margin-bottom: 24;
+      margin-start: 24;
+      margin-end: 24;
+
+      Gtk.ListBox {
+        hexpand: true;
+
+        styles [
+          "boxed-list",
+        ]
+
+        Adw.ActionRow row_duration {
+          title: _("Duration");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_title {
+          title: _("Title");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_video_bitrate {
+          title: _("Video Bitrate");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+          hexpand: true;
+
+          styles [
+            "property",
+          ]
+        }
+
+        Adw.ActionRow row_resolution {
+          title: _("Resolution");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_framerate {
+          title: _("Framerate");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_video_codec {
+          title: _("Codec Video");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_audio_bitrate {
+          title: _("Audio Bitrate");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_audio_channel {
+          title: _("Auido Channel");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_audio_codec {
+          title: _("Audio Codec");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+
+        Adw.ActionRow row_sample_rate {
+          title: _("Sample Rate");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_comment {
+          title: _("Comment");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_artist {
+          title: _("Artist");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+
+        Adw.ActionRow row_description {
+          title: _("Description");
+          subtitle: _("");
+          subtitle-selectable: true;
+          valign: center;
+
+          styles [
+            "property",
+          ]
+
+          hexpand: true;
+        }
+      }
+    }
+  };
+}
