@@ -422,7 +422,7 @@ class Window(Adw.ApplicationWindow):
         }}
         """
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(filters_css)
+        css_provider.load_from_string(filters_css)
         default_display = Gdk.Display.get_default()
         if default_display is None:
             logger.error("App is unable to get default display")
