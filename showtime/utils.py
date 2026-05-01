@@ -153,7 +153,11 @@ def get_metadata(video_file: Gio.File) -> VideoMetadata:
     video_bitrate = f"{convert_bps_to_kbps(video_stream.get_bitrate())} kbps"
     video_height = discoverer_video_info.get_height(video_stream)
     video_width = discoverer_video_info.get_width(video_stream)
-    video_framerate = discoverer_video_info.get_framerate_num(video_stream)
+    video_framerate = round(
+        discoverer_video_info.get_framerate_num(video_stream)
+        / discoverer_video_info.get_framerate_denom(video_stream),
+        2,
+    )
     video_codec = ""
     video_title = str(video_file.get_basename())
 
