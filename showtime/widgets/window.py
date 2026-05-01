@@ -417,26 +417,8 @@ class Window(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:
-
-        file_content_type = gfile.query_info(
-            "standard::content-type", Gio.FileQueryInfoFlags.NONE, None
-        ).get_content_type()
-        subtitle_mime_types = (
-            "text/plain",
-            "text/vtt",
-            "text/srt",
-            "application/x-subrip",
-            "application/x-srt",
-            "application/ttml+xml",
-            "application/dfxp+xml",
-            "application/x-subviewer",
-            "application/x-microdvd",
-            "application/x-sami",
-            "application/x-ass",
-            "application/x-ssa",
-        )
         "Only try to play subtitles when already playing a video."
-        if file_content_type in subtitle_mime_types and self._playing_gfile:
+        if self._playing_gfile:
             self._on_drop_subtitles(gfile)
         else:
             self.play_video(gfile)
