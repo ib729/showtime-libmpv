@@ -44,7 +44,7 @@ from showtime.utils import (
     screenshot,
 )
 
-from .video_metadata import VideoMetadata
+from .video_metadata import VideoMetadata, VideoMetadataDialog
 
 from .drag_overlay import DragOverlay
 from .options import Options
@@ -1060,40 +1060,11 @@ class Window(Adw.ApplicationWindow):
     def _show_video_metadata(self) -> None:
         if self._playing_gfile is None:
             return
-        video_metadata_dialog = VideoMetadata()
+        video_metadata_dialog = VideoMetadataDialog()
         metadata = get_metadata(self._playing_gfile)
+        metadata.duration = nanoseconds_to_timestamp(self.play.get_duration())
 
-        if not metadata.file_artist:
-            video_metadata_dialog.row_artist.set_visible(False)
-        else:
-            video_metadata_dialog.row_artist.set_subtitle(metadata.file_artist)
-        if not metadata.file_description:
-            video_metadata_dialog.row_description.set_visible(False)
-        else:
-            video_metadata_dialog.row_description.set_subtitle(
-                metadata.file_description
-            )
-        if not metadata.file_comment:
-            video_metadata_dialog.row_comment.set_visible(False)
-        else:
-            video_metadata_dialog.row_comment.set_subtitle(metadata.file_comment)
-        # Present in all videos
-        video_metadata_dialog.row_duration.set_subtitle(
-            nanoseconds_to_timestamp(self.play.get_duration())
-        )
-        video_metadata_dialog.row_title.set_subtitle(metadata.video_title)
-
-        video_metadata_dialog.row_audio_bitrate.set_subtitle(metadata.audio_bitrate)
-        video_metadata_dialog.row_audio_channel.set_subtitle(metadata.audio_channel)
-        video_metadata_dialog.row_audio_codec.set_subtitle(metadata.audio_codec)
-        video_metadata_dialog.row_video_bitrate.set_subtitle(metadata.video_bitrate)
-
-        video_metadata_dialog.row_framerate.set_subtitle(metadata.video_framerate)
-        video_metadata_dialog.row_resolution.set_subtitle(
-            f"{metadata.video_width} ˣ {metadata.video_height}"
-        )
-        video_metadata_dialog.row_sample_rate.set_subtitle(metadata.audio_sample_rate)
-        video_metadata_dialog.row_video_codec.set_subtitle(metadata.video_codec)
+        video_metadata_dialog.set_metadata(metadata)
         video_metadata_dialog.present(self)
 
     def _screenshot(self) -> None:

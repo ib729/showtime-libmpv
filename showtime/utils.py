@@ -17,6 +17,7 @@ from gi.repository import (
 )
 
 from showtime import logger
+from showtime.widgets.video_metadata import VideoMetadata
 
 SECONDS_ONLY = 2
 
@@ -140,55 +141,7 @@ def format_sample_rate(sample_rate: int) -> float:
     return sample_rate / 1000
 
 
-class Metadata:
-    "Video metadata class."
-
-    video_bitrate: str = ""
-    video_height: str = ""
-    video_width: str = ""
-    video_framerate: str = ""
-    video_codec: str = ""
-    video_title: str = ""
-    audio_bitrate: str = ""
-    audio_channel: str = ""
-    audio_codec: str = ""
-    audio_sample_rate: str = ""
-    file_comment: str = ""
-    file_artist: str = ""
-    file_description: str = ""
-
-    def __init__(
-        self,
-        video_bitrate: str,
-        video_height: str,
-        video_width: str,
-        video_framerate: str,
-        video_codec: str,
-        video_title: str,
-        audio_bitrate: str,
-        audio_channel: str,
-        audio_codec: str,
-        audio_sample_rate: str,
-        file_comment: str,
-        file_artist: str,
-        file_description: str,
-    ):
-        self.video_bitrate = video_bitrate
-        self.video_height = video_height
-        self.video_width = video_width
-        self.video_framerate = video_framerate
-        self.video_codec = video_codec.upper()
-        self.video_title = video_title
-        self.audio_bitrate = audio_bitrate
-        self.audio_channel = audio_channel
-        self.audio_codec = audio_codec.upper()
-        self.audio_sample_rate = audio_sample_rate
-        self.file_comment = file_comment
-        self.file_artist = file_artist
-        self.file_description = file_description
-
-
-def get_metadata(video_file: Gio.File) -> Metadata:
+def get_metadata(video_file: Gio.File) -> VideoMetadata:
     "Get audio and video metadata."
     discoverer_video_info = GstPbutils.DiscovererVideoInfo
     discoverer = GstPbutils.Discoverer()
@@ -251,18 +204,18 @@ def get_metadata(video_file: Gio.File) -> Metadata:
 
     tags = cast(Gst.TagList, info.get_tags())
     tags.foreach(extract_tags_info, None)
-    return Metadata(
-        video_bitrate,
-        str(video_height),
-        str(video_width),
-        f"{video_framerate} FPS",
-        video_codec,
-        video_title,
-        audio_bitrate,
-        audio_channel,
-        audio_codec,
-        audio_sample_rate,
-        file_comment,
-        file_artist,
-        file_description,
+
+    return VideoMetadata(
+        video_bitrate=video_bitrate,
+        video_codec=video_codec,
+        audio_bitrate=audio_bitrate,
+        audio_channel=audio_channel,
+        audio_codec=audio_codec,
+        description=file_description,
+        artist=file_artist,
+        comment=file_comment,
+        sample_rate=audio_sample_rate,
+        resolution=f"{video_width} x {video_height}",
+        title=video_title,
+        framerate=f"{video_framerate} FPS",
     )
