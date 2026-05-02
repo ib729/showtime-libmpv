@@ -1157,10 +1157,13 @@ class Window(Adw.ApplicationWindow):
     def _on_drop_subtitles(self, gfile: Gio.File) -> None:
         # TODO: Crash when video already have embed subtitles, only work in videos
         # without subtitles
+        self.play.props.suburi = None
+        self.pause()
         self.pipeline.set_state(Gst.State.NULL)
         self.play.props.suburi = gfile.get_uri()
         self.select_subtitles(0)
         logger.debug("External subtitle added %s", gfile.get_uri())
+        self.unpause()
 
     def _on_subtitles_selected(
         self,
