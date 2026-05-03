@@ -122,8 +122,8 @@ def get_subtitle_font_desc() -> str | None:
         new_size = size * ((settings.props.gtk_xft_dpi / 1024) / 72)
         return font_name[: len(font_name) - len(size_str)] + str(round(new_size))
 
-class MultiFingerSwipe(Gtk.Gesture):
-    __gtype_name__ = "MultiFingerSwipe"
+class GestureMultiDrag(Gtk.Gesture):
+    __gtype_name__ = "GestureMultiDrag"
 
     def __init__(self, n_fingers: int = 2,
             on_begin_action : Callable[[float, float], None] | None = None,

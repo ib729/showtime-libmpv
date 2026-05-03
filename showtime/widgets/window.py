@@ -39,7 +39,7 @@ from showtime.utils import (
     lookup_action,
     nanoseconds_to_timestamp,
     screenshot,
-	MultiFingerSwipe
+	GestureMultiDrag
 )
 
 from .drag_overlay import DragOverlay
@@ -282,7 +282,7 @@ class Window(Adw.ApplicationWindow):
         ):
             widget.set_direction(Gtk.TextDirection.LTR)
 
-        self.gesture_swipe = MultiFingerSwipe(
+        self.gesture_swipe = GestureMultiDrag(
 			n_fingers=2,
 			on_update_action=self.on_swipe_gesture_update,
 			on_end_action=self.on_swipe_gesture_end
@@ -293,9 +293,9 @@ class Window(Adw.ApplicationWindow):
 
     def on_swipe_gesture_update(self, velocity_x : float, velocity_y : float, elapsed : float):
         """
-		If the gesture has happened for more than 0.1 of a second, reveal the overlay and then
-		adjust volume/playback pos.
-		"""
+        If the gesture has happened for more than 0.1 of a second, reveal the overlay and then
+        adjust volume/playback pos.
+        """
         if elapsed > 0.1:
             for widget in self.overlay_widgets:
                 self._reveal_overlay(widget)
@@ -307,9 +307,9 @@ class Window(Adw.ApplicationWindow):
 
     def on_swipe_gesture_end(self, velocity_x : float, velocity_y : float, elapsed : float):
         """
-		If the gesture has happened for less than 0.1 of a second, it's probably tap, not a swipe
-		reveal the overlay and play/pause playback.
-		"""
+        If the gesture has happened for less than 0.1 of a second, it's probably tap, not a swipe
+        reveal the overlay and play/pause playback.
+        """
         if elapsed < 0.1:
             for widget in self.overlay_widgets:
                 self._reveal_overlay(widget)
