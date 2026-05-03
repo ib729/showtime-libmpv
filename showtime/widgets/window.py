@@ -39,6 +39,7 @@ from showtime.utils import (
     lookup_action,
     nanoseconds_to_timestamp,
     screenshot,
+	MultiFingerSwipe
 )
 
 from .drag_overlay import DragOverlay
@@ -64,7 +65,6 @@ SMALL_SIZE_CHANGE = 10
 SCALE_MULT = 500
 
 MINUTE_IN_NS = 6e10
-
 
 @Gtk.Template.from_resource(f"{PREFIX}/gtk/window.ui")
 class Window(Adw.ApplicationWindow):
@@ -275,17 +275,41 @@ class Window(Adw.ApplicationWindow):
         ):
             widget.set_direction(Gtk.TextDirection.LTR)
 
-        self.gesture = Gtk.GestureClick.new()
-        self.gesture.set_button(0)  # 0 = any button, handle all
-        self.gesture.connect("pressed", self.on_gesture_pressed)
-        self.add_controller(self.gesture)
+        self.gesture_swipe = MultiFingerSwipe(
+			n_fingers=2,
+			on_update_action=self.on_swipe_gesture_update,
+			on_end_action=self.on_swipe_gesture_end
+		)
+        self.add_controller(self.gesture_swipe)
 
         self._create_actions()
 
-    def on_gesture_pressed(self, gesture, n_press, x, y):
-        logger.debug("GESTURE: %d %d %d", n_press, x, y)
-        if n_press == 2:
-            self.toggle_playback()
+    def on_swipe_gesture_update(self, velocity_x, velocity_y, elapsed):
+        """
+		If the gesture has happened for more than 0.1 of a second, reveal the overlay and then
+		adjust volume/playback pos.
+		"""
+        if elapsed > 0.1:
+            for widget in self.overlay_widgets:
+                self._reveal_overlay(widget)
+            if abs(velocity_x) > abs(velocity_y):
+                self.play.seek(max(0, self.play.props.position + ((velocity_x * 100000) * (self.play.props.duration / 1e10))))
+            else:
+                vol_adjust = -1 * (velocity_y / 1000)
+                self.play.set_volume(0 if vol_adjust < 0 else 1 if vol_adjust > 1 else vol_adjust)
+
+    def on_swipe_gesture_end(self, velocity_x, velocity_y, elapsed):
+        """
+		If the gesture has happened for less than 0.1 of a second, it's probably tap, not a swipe
+		reveal the overlay and play/pause playback.
+		"""
+        if elapsed < 0.1:
+            for widget in self.overlay_widgets:
+                self._reveal_overlay(widget)
+            if self.paused:
+                self.unpause()
+            else:
+                self.pause()
 
     def do_size_allocate(self, width: int, height: int, baseline: int) -> None:
         """Call to set the allocation, if the widget does not have a layout manager."""
