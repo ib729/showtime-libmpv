@@ -291,7 +291,7 @@ class Window(Adw.ApplicationWindow):
 
         self._create_actions()
 
-    def on_swipe_gesture_update(self, velocity_x, velocity_y, elapsed):
+    def on_swipe_gesture_update(self, velocity_x : float, velocity_y : float, elapsed : float):
         """
 		If the gesture has happened for more than 0.1 of a second, reveal the overlay and then
 		adjust volume/playback pos.
@@ -305,7 +305,7 @@ class Window(Adw.ApplicationWindow):
                 vol_adjust = -1 * (velocity_y / 1000)
                 self.play.set_volume(0 if vol_adjust < 0 else 1 if vol_adjust > 1 else vol_adjust)
 
-    def on_swipe_gesture_end(self, velocity_x, velocity_y, elapsed):
+    def on_swipe_gesture_end(self, velocity_x : float, velocity_y : float, elapsed : float):
         """
 		If the gesture has happened for less than 0.1 of a second, it's probably tap, not a swipe
 		reveal the overlay and play/pause playback.
