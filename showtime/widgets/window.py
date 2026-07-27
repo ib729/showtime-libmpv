@@ -788,7 +788,7 @@ class Window(Adw.ApplicationWindow):
 
         # https://gstreamer.freedesktop.org/documentation/additional/design/missing-plugins.html#partially-missing-plugins
         if partially_missing := (
-            self.pipeline.get_state(Gst.CLOCK_TIME_NONE)[0]
+            self.pipeline.get_state(Gst.SECOND)[0]
             != Gst.StateChangeReturn.FAILURE
         ):
             self.pause()
