@@ -44,6 +44,7 @@ from showtime.utils import (
 from .drag_overlay import DragOverlay
 from .options import Options
 from .sound_options import SoundOptions
+from .filters import Filters
 
 if TYPE_CHECKING:
     from showtime.main import Application
@@ -104,6 +105,8 @@ class Window(Adw.ApplicationWindow):
     end_timestamp_button: Gtk.Button = Gtk.Template.Child()
 
     sound_options: SoundOptions = Gtk.Template.Child()
+
+    video_filters: Filters = Gtk.Template.Child()
 
     options: Options = Gtk.Template.Child()
 
@@ -414,6 +417,50 @@ class Window(Adw.ApplicationWindow):
                 props.orientation = 5
             case _:
                 props.orientation += 1
+
+    def _apply_video_filters(self) -> None:
+        # Attach CSS is more resource efficent than use self.play.set_color_balance
+        filters_css = f"""
+        picture {{
+            filter:
+            saturate({self.video_filters.saturation})
+            brightness({self.video_filters.brightness})
+            contrast({self.video_filters.contrast});
+        }}
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_string(filters_css)
+        default_display = Gdk.Display.get_default()
+        if default_display is None:
+            logger.error("App is unable to get default display")
+            return
+        Gtk.StyleContext.add_provider_for_display(
+            default_display, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+    @Gtk.Template.Callback()
+    def _saturation_change(self, _args, _value) -> None:
+        self._apply_video_filters()
+
+    @Gtk.Template.Callback()
+    def _reset_saturation(self) -> None:
+        self.emit("saturation-change", 1.0)
+
+    @Gtk.Template.Callback()
+    def _brightness_change(self, _args, _value) -> None:
+        self._apply_video_filters()
+
+    @Gtk.Template.Callback()
+    def _reset_brightness(self, _args) -> None:
+        self.emit("brightness-change", 1.0)
+
+    @Gtk.Template.Callback()
+    def _contrast_change(self, _args, _value) -> None:
+        self._apply_video_filters()
+
+    @Gtk.Template.Callback()
+    def _reset_contrast(self, _args) -> None:
+        self.emit("contrast-change", 1.0)
 
     @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:

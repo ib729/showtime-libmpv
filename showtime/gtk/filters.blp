@@ -1,0 +1,202 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $Filters: Adw.Bin {
+  child: MenuButton menu_video_filters {
+    halign: start;
+    valign: center;
+    icon-name: "sliders-horizontal-symbolic";
+    direction: up;
+
+    popover: PopoverMenu popover_filters {
+      menu-model: menu {
+        section {
+          item {
+            custom: "brightness";
+          }
+        }
+
+        section {
+          item {
+            custom: "saturation";
+          }
+        }
+
+        section {
+          item {
+            custom: "contrast";
+          }
+        }
+      };
+
+      [brightness]
+      Box {
+        margin-top: 9;
+        margin-bottom: 9;
+        margin-start: 9;
+        margin-end: 9;
+        spacing: 12;
+        orientation: vertical;
+
+        Label {
+          halign: start;
+          margin-start: 6;
+          label: _("_Brightness");
+          use-underline: true;
+          mnemonic-widget: brightness_input;
+          styles [
+            "heading",
+          ]
+        }
+
+        Adw.WrapBox {
+          Scale brightness_input {
+            value-changed => $_brightness_change();
+            orientation: horizontal;
+            hexpand: true;
+            can-focus: true;
+
+            adjustment: Gtk.Adjustment {
+              lower: 0.0;
+              upper: 2.0;
+              value: 1.0;
+              page-increment: 0.10;
+              step-increment: 0.01;
+            };
+
+            draw-value: true;
+            digits: 2;
+            value-pos: right;
+          }
+
+          Button {
+            icon-name: "edit-undo-symbolic";
+            tooltip-text: _("Reset Brightness");
+            clicked => $_reset_brightness();
+
+            styles [
+              "flat",
+            ]
+          }
+        }
+      }
+
+      [saturation]
+      Box {
+        margin-top: 9;
+        margin-bottom: 9;
+        margin-start: 12;
+        margin-end: 12;
+        spacing: 12;
+        orientation: vertical;
+        width-request: 240;
+
+        Label {
+          halign: start;
+          margin-start: 6;
+          label: _("_Saturation");
+          use-underline: true;
+          mnemonic-widget: saturation_input;
+
+          styles [
+            "heading",
+          ]
+        }
+
+        Adw.WrapBox {
+          Scale saturation_input {
+            value-changed => $_saturation_change();
+            orientation: horizontal;
+            hexpand: true;
+            can-focus: true;
+
+            adjustment: Gtk.Adjustment {
+              lower: 0.0;
+              upper: 2.0;
+              value: 1.0;
+              page-increment: 0.10;
+              step-increment: 0.01;
+            };
+
+            draw-value: true;
+            digits: 2;
+            value-pos: right;
+          }
+
+          Button {
+            icon-name: "edit-undo-symbolic";
+            tooltip-text: _("Reset Saturation");
+            clicked => $_reset_saturation();
+
+            styles [
+              "flat",
+            ]
+          }
+        }
+      }
+
+      [contrast]
+      Box {
+        margin-top: 9;
+        margin-bottom: 9;
+        margin-start: 12;
+        margin-end: 12;
+        spacing: 12;
+        orientation: vertical;
+        width-request: 240;
+
+        Label {
+          halign: start;
+          margin-start: 6;
+          label: _("_Contrast");
+          use-underline: true;
+          mnemonic-widget: contrast_input;
+
+          styles [
+            "heading",
+          ]
+        }
+
+        Adw.WrapBox {
+          Scale contrast_input {
+            value-changed => $_contrast_change();
+            orientation: horizontal;
+            hexpand: true;
+            can-focus: true;
+
+            adjustment: Gtk.Adjustment {
+              lower: 0.0;
+              upper: 2.0;
+              value: 1.0;
+              page-increment: 0.10;
+              step-increment: 0.01;
+            };
+
+            draw-value: true;
+            digits: 2;
+            value-pos: right;
+          }
+
+          Button {
+            icon-name: "edit-undo-symbolic";
+            tooltip-text: _("Reset Contrast");
+            clicked => $_reset_contrast();
+
+            styles [
+              "flat",
+            ]
+          }
+        }
+      }
+    };
+    accessibility {
+      label: _("Video filters");
+    }
+
+    styles [
+      "circular",
+      "highlighted",
+      "overlaid",
+    ]
+  };
+}

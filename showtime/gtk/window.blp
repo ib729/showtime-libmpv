@@ -207,6 +207,15 @@ template $Window: Adw.ApplicationWindow {
                       ]
                     }
 
+                    $Filters video_filters {
+                      brightness-change => $_brightness_change();
+                      reset-brightness => $_reset_brightness();
+                      saturation-change => $_saturation_change();
+                      reset-saturation => $_reset_saturation();
+                      contrast-change => $_contrast_change();
+                      reset-contrast => $_reset_contrast();
+                    }
+
                     $SoundOptions sound_options {
                       mute: bind template.mute bidirectional;
                       volume: bind template.volume;
@@ -218,6 +227,7 @@ template $Window: Adw.ApplicationWindow {
                       rotate-left => $_rotate_left();
                       rotate-right => $_rotate_right();
                     }
+
                   }
 
                   Scale seek_scale {
