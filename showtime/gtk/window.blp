@@ -130,13 +130,16 @@ template $Window: Adw.ApplicationWindow {
                   vexpand: true;
                   halign: center;
                   valign: center;
-                  margin-top: 48;
+                  margin-top: 80;
 
                   Button {
                     name: "backwards-button";
                     valign: center;
                     icon-name: "skip-backwards-10-symbolic";
                     action-name: "win.backwards";
+                    height-request: 80;
+                    width-request: 80;
+                    opacity: .6;
 
                     accessibility {
                       label: _("Go Back 10 Seconds");
@@ -156,6 +159,9 @@ template $Window: Adw.ApplicationWindow {
                     valign: center;
                     icon-name: bind $_get_play_icon(template.paused) as <string>;
                     action-name: "win.toggle-playback";
+                    height-request: 80;
+                    width-request: 80;
+                    opacity: .6;
 
                     accessibility {
                       label: _("Play");
@@ -173,6 +179,9 @@ template $Window: Adw.ApplicationWindow {
                     valign: center;
                     icon-name: "skip-forward-10-symbolic";
                     action-name: "win.forwards";
+                    height-request: 80;
+                    width-request: 80;
+                    opacity: .6;
 
                     accessibility {
                       label: _("Go Forward 10 Seconds");
