@@ -5,6 +5,7 @@ blueprints = custom_target(
         'gtk/shortcuts-dialog.blp',
         'gtk/sound-options.blp',
         'gtk/window.blp',
+        'gtk/video-metadata.blp'
     ),
     output: '.',
     command: [
@@ -44,6 +45,7 @@ showtime_widgets_sources = [
     'widgets/options.py',
     'widgets/sound_options.py',
     'widgets/window.py',
+    'widgets/video_metadata.py'
 ]
 
 showtime_sources = [

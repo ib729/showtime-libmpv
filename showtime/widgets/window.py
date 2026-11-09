@@ -35,11 +35,16 @@ from showtime import (
 )
 from showtime.play import Messenger, MissingPlugin, gst_play_setup
 from showtime.utils import (
+    convert_bps_to_kbps,
+    format_sample_rate,
+    get_metadata,
     get_title,
     lookup_action,
     nanoseconds_to_timestamp,
     screenshot,
 )
+
+from .video_metadata import VideoMetadata, VideoMetadataDialog
 
 from .drag_overlay import DragOverlay
 from .options import Options
@@ -917,6 +922,10 @@ class Window(Adw.ApplicationWindow):
         )
 
         self._create_action(
+            "show-video-metadata", lambda *_: self._show_video_metadata()
+        )
+
+        self._create_action(
             "toggle-fullscreen",
             lambda *_: self.set_property("fullscreened", not self.props.fullscreened),
             ("F11", "f"),
@@ -1064,6 +1073,16 @@ class Window(Adw.ApplicationWindow):
             about.props.debug_info_filename = log_file.name
 
         about.present(self)
+
+    def _show_video_metadata(self) -> None:
+        if self._playing_gfile is None:
+            return
+        video_metadata_dialog = VideoMetadataDialog()
+        metadata = get_metadata(self._playing_gfile)
+        metadata.duration = nanoseconds_to_timestamp(self.play.get_duration())
+
+        video_metadata_dialog.set_metadata(metadata)
+        video_metadata_dialog.present(self)
 
     def _screenshot(self) -> None:
         if not (paintable := self.picture.props.paintable):

@@ -3,19 +3,29 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 from urllib.parse import unquote, urlparse
 
 from gi.repository import (
     Gdk,
     Gio,
     Graphene,
+    Gst,
+    GstPbutils,
     GstPlay,  # pyright: ignore[reportAttributeAccessIssue]
     Gtk,
 )
 
 from showtime import logger
+from showtime.widgets.video_metadata import VideoMetadata
 
 SECONDS_ONLY = 2
+
+# Audio channels
+CHANNELS_MONO = 1
+CHANNELS_MIN_STEREO = 2
+CHANNELS_MAX_STEREO = 3
+CHANNELS_MIN_SURROUND = 4
 
 
 def screenshot(paintable: Gdk.Paintable, native: Gtk.Native) -> Gdk.Texture | None:
@@ -119,3 +129,97 @@ def get_subtitle_font_desc() -> str | None:
         # TODO: Can I always assume that 72 is the default unscaled DPI? Probably not…
         new_size = size * ((settings.props.gtk_xft_dpi / 1024) / 72)
         return font_name[: len(font_name) - len(size_str)] + str(round(new_size))
+
+
+def convert_bps_to_kbps(bps: int) -> int:
+    "Convert bits per second to kilobits per second."
+    return int(bps / 1000)
+
+
+def format_sample_rate(sample_rate: int) -> float:
+    "Convert sample rate to kHz."
+    return sample_rate / 1000
+
+
+def get_metadata(video_file: Gio.File) -> VideoMetadata:
+    "Get audio and video metadata."
+    discoverer_video_info = GstPbutils.DiscovererVideoInfo
+    discoverer = GstPbutils.Discoverer()
+    info = discoverer.discover_uri(video_file.get_uri())
+
+    # App only allow single video stream
+    video_stream = info.get_video_streams()[0]
+
+    video_bitrate = f"{convert_bps_to_kbps(video_stream.get_bitrate())} kbps"
+    video_height = discoverer_video_info.get_height(video_stream)
+    video_width = discoverer_video_info.get_width(video_stream)
+    video_framerate = round(
+        discoverer_video_info.get_framerate_num(video_stream)
+        / discoverer_video_info.get_framerate_denom(video_stream),
+        2,
+    )
+    video_codec = ""
+    video_title = str(video_file.get_basename())
+
+    # Only check default audio stream
+    audio_stream = info.get_audio_streams()[0]
+
+    audio_bitrate = f"{convert_bps_to_kbps(audio_stream.get_bitrate())} kbps"
+    audio_channel = ""
+    audio_channels_qty = audio_stream.get_channels()
+
+    if audio_channels_qty == CHANNELS_MONO:
+        audio_channel = "Mono"
+    elif (
+        audio_channels_qty >= CHANNELS_MIN_STEREO
+        and audio_channels_qty < CHANNELS_MAX_STEREO
+    ):
+        audio_channel = "Stereo"
+    elif audio_channels_qty >= CHANNELS_MIN_SURROUND:
+        audio_channel = "Surround"
+
+    audio_codec = ""
+    audio_sample_rate = f"{format_sample_rate(audio_stream.get_sample_rate()):.2f} kHz"
+    file_comment = ""
+    file_artist = ""
+    file_description = ""
+
+    video_caps = (
+        cast(Gst.Caps, discoverer_video_info.get_caps(video_stream))
+        .to_string()
+        .split(",")
+    )
+    for cap in video_caps:
+        # Video codec is more easy to extract from caps
+        if "video" in cap:
+            video_codec = cap.split("-")[1]
+
+    def extract_tags_info(taglist: Gst.TagList, tag: str, _user_data):
+        nonlocal file_artist, file_comment, file_description, audio_codec
+        _success, value = taglist.get_string(tag)
+        if tag == "comment":
+            file_comment = value
+        elif tag == "artist":
+            file_artist = value
+        elif tag == "description":
+            file_description = value
+        elif tag == "audio-codec":
+            audio_codec = value
+
+    tags = cast(Gst.TagList, info.get_tags())
+    tags.foreach(extract_tags_info, None)
+
+    return VideoMetadata(
+        video_bitrate=video_bitrate,
+        video_codec=video_codec,
+        audio_bitrate=audio_bitrate,
+        audio_channel=audio_channel,
+        audio_codec=audio_codec,
+        description=file_description,
+        artist=file_artist,
+        comment=file_comment,
+        sample_rate=audio_sample_rate,
+        resolution=f"{video_width} x {video_height}",
+        title=video_title,
+        framerate=f"{video_framerate} FPS",
+    )
