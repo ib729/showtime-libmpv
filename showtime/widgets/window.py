@@ -421,7 +421,11 @@ class Window(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def _on_drop(self, _target, gfile: Gio.File, _x, _y) -> None:
-        self.play_video(gfile)
+        "Only try to play subtitles when already playing a video."
+        if self._playing_gfile:
+            self._on_drop_subtitles(gfile)
+        else:
+            self.play_video(gfile)
 
     def _get_previous_play_position(self) -> float | None:
         if not (uri := self.play.props.uri):
@@ -1146,6 +1150,18 @@ class Window(Adw.ApplicationWindow):
         self.play.props.suburi = gfile.get_uri()
         self.select_subtitles(0)
         logger.debug("External subtitle added: %s", gfile.get_uri())
+        self.unpause()
+
+    def _on_drop_subtitles(self, gfile: Gio.File) -> None:
+        # TODO: Crash when video already have embed subtitles, only work in videos
+        # without subtitles
+        self.play.props.suburi = None
+        self.pause()
+        self.pipeline.set_state(Gst.State.NULL)
+        self.play.props.suburi = gfile.get_uri()
+        self.select_subtitles(0)
+        logger.debug("External subtitle added %s", gfile.get_uri())
+        self.unpause()
 
     def _on_subtitles_selected(
         self,
