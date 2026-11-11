@@ -3,7 +3,9 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Callable
 from urllib.parse import unquote, urlparse
+from time import time
 
 from gi.repository import (
     Gdk,
@@ -119,3 +121,60 @@ def get_subtitle_font_desc() -> str | None:
         # TODO: Can I always assume that 72 is the default unscaled DPI? Probably not…
         new_size = size * ((settings.props.gtk_xft_dpi / 1024) / 72)
         return font_name[: len(font_name) - len(size_str)] + str(round(new_size))
+
+class GestureMultiDrag(Gtk.Gesture):
+    __gtype_name__ = "GestureMultiDrag"
+
+    def __init__(self, n_fingers: int = 2,
+            on_begin_action : Callable[[float, float], None] | None = None,
+            on_update_action : Callable[[float, float, float], None] | None = None,
+            on_end_action : Callable[[float, float, float], None] | None = None
+        ):
+        super().__init__(n_points=n_fingers)
+
+        self.connect("begin", self._on_begin)
+        self.connect("update", self._on_update)
+        self.connect("end", self._on_end)
+
+        self.start_x = 0.0
+        self.start_y = 0.0
+        self.start_time = 0.0
+
+        self.on_begin_action = on_begin_action
+        self.on_update_action = on_update_action
+        self.on_end_action = on_end_action
+
+    def _get_center(self):
+        ok, rect = self.get_bounding_box()
+        if ok:
+            return rect.x + rect.width / 2, rect.y + rect.height / 2
+        return 0.0, 0.0
+
+    def _on_begin(self, gesture, sequence):
+        self.start_x, self.start_y = self._get_center()
+        self.start_time = time()
+        if self.on_begin_action != None:
+            self.on_begin_action(self.start_x, self.start_y)
+
+    def _on_update(self, gesture, sequence):
+        current_x, current_y = self._get_center()
+        dx = current_x - self.start_x
+        dy = current_y - self.start_y
+        dt = time() - self.start_time
+
+        velocity_x = dx / dt if dt > 0 else 0
+        velocity_y = dy / dt if dt > 0 else 0
+        if self.on_update_action != None:
+            self.on_update_action(velocity_x, velocity_y, dt)
+
+    def _on_end(self, gesture, sequence):
+        end_x, end_y = self._get_center()
+        dx = end_x - self.start_x
+        dy = end_y - self.start_y
+        dt = time() - self.start_time
+
+        velocity_x = dx / dt if dt > 0 else 0
+        velocity_y = dy / dt if dt > 0 else 0
+
+        if self.on_end_action != None:
+            self.on_end_action(velocity_x, velocity_y, dt)
