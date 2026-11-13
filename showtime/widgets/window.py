@@ -343,6 +343,7 @@ class Window(Adw.ApplicationWindow):
         self.select_language(0)
         self.rate = "1.0"
 
+        self.play.props.suburi = None
         self.play.props.uri = uri
         self.pause()
         self._on_motion()
@@ -1143,7 +1144,25 @@ class Window(Adw.ApplicationWindow):
         if not gfile:
             return
 
-        self.play.props.suburi = gfile.get_uri()
+        pos = self.play.get_position()
+        uri = self.play.props.uri
+        was_paused = self.paused
+
+        if uri:
+            def setup_cb(pipeline, *_args) -> None:
+                pipeline.disconnect_by_func(setup_cb)
+                if pos > 0:
+                    self.play.seek(pos)
+
+            self.pipeline.connect("source-setup", setup_cb)
+            self.play.set_uri(None)
+            self.play.props.suburi = gfile.get_uri()
+            self.play.set_uri(uri)
+            if not was_paused:
+                self.play.play()
+        else:
+            self.play.props.suburi = gfile.get_uri()
+
         self.select_subtitles(0)
         logger.debug("External subtitle added: %s", gfile.get_uri())
 
