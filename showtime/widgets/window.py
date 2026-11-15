@@ -142,6 +142,8 @@ class Window(Adw.ApplicationWindow):
     _prev_volume = -1
     _toplevel_focused: bool = False
 
+    _number_of_video_streams: int = 0
+
     @GObject.Property(type=bool, default=False)
     def mute(self) -> bool:
         """Get the mute state."""
@@ -217,6 +219,7 @@ class Window(Adw.ApplicationWindow):
         ) = gst_play_setup(self.picture)
 
         self.paintable.connect("invalidate-size", self._on_paintable_invalidate_size)
+        self.connect("notify::suspended", self._on_suspended)
 
         messenger = Messenger(self.play)
         messenger.connect("state-changed", self._on_playback_state_changed)
@@ -629,6 +632,11 @@ class Window(Adw.ApplicationWindow):
             GLib.timeout_add(100, self._resize_window, None, paintable)
         else:
             self.connect("map", self._resize_window, paintable, True)
+    
+    def _on_suspended(self, window: Adw.ApplicationWindow, *_args: Any) -> None:
+        logger.debug(f"Window is suspended: {window.is_suspended()}")
+        if self._number_of_video_streams:
+            self.play.set_video_track_enabled(not window.is_suspended())
 
     @Gtk.Template.Callback()
     def _on_motion(
@@ -719,6 +727,7 @@ class Window(Adw.ApplicationWindow):
 
     def _on_media_info_updated(self, _obj, media_info: GstPlay.PlayMediaInfo) -> None:
         self.title_label.props.label = get_title(media_info) or ""
+        self._number_of_video_streams = media_info.get_number_of_video_streams()
 
         # Add a timeout to reduce things happening at once while the video is loading
         # since the user won't want to change languages/subtitles within 500ms anyway
