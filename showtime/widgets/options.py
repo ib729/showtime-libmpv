@@ -31,12 +31,7 @@ class Options(Adw.Bin):
     language_menu: Gio.Menu = Gtk.Template.Child()
     subtitles_menu: Gio.Menu = Gtk.Template.Child()
 
-    rotate_left = GObject.Signal()
-    rotate_right = GObject.Signal()
-
     rate = GObject.Property(type=str)
-
-    menus_building = 0
 
     def on_secondary_click_pressed(
         self,
@@ -73,13 +68,6 @@ class Options(Adw.Bin):
 
     def build_menus(self, media_info: GstPlay.PlayMediaInfo) -> None:
         """Fill up the menu with subtitles and languages."""
-        self.menus_building -= 1
-
-        # Don't try to rebuild the menu multiple times
-        # when the media info has many changes
-        if self.menus_building > 1:
-            return
-
         self.language_menu.remove_all()
         self.subtitles_menu.remove_all()
 
@@ -141,11 +129,3 @@ class Options(Adw.Bin):
         value = not action.props.state.get_boolean()
         action.set_state(GLib.Variant.new_boolean(value))
         state_settings.set_boolean("looping", value)
-
-    @Gtk.Template.Callback()
-    def _rotate_left(self, *_args) -> None:
-        self.emit("rotate-left")
-
-    @Gtk.Template.Callback()
-    def _rotate_right(self, *_args) -> None:
-        self.emit("rotate-right")
