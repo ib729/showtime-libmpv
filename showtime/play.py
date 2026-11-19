@@ -12,7 +12,8 @@ from gi.repository import (
     Gtk,
 )
 
-from showtime import logger, system, utils
+from showtime import logger, system
+from showtime.util.connection import Connection
 
 
 class MissingPlugin(NamedTuple):
@@ -52,16 +53,7 @@ def gst_play_setup(
 
     pipeline = play.props.pipeline
 
-    def set_subtitle_font_desc(*_args) -> None:
-        pipeline.props.subtitle_font_desc = utils.get_subtitle_font_desc()
-
-    if settings := Gtk.Settings.get_default():
-        settings.connect("notify::gtk-xft-dpi", set_subtitle_font_desc)
-
-    set_subtitle_font_desc()
-
     return paintable, play, pipeline, paintable_sink
-
 
 def _should_missing_plugin_be_ignored(missing_plugin: MissingPlugin) -> bool:
     """Check if a missing plugin should be ignored.
@@ -122,9 +114,19 @@ class Messenger(GObject.Object):
     ) -> None:
         super().__init__(**kwargs)
 
-        if bus := play.get_message_bus():
-            bus.add_signal_watch()
-            bus.connect("message", self._on_play_bus_message)
+        self._bus = play.get_message_bus()
+        self._bus_connection = Connection("message", self._on_play_bus_message)
+        if self._bus:
+            self._bus.add_signal_watch()
+            self._bus_connection.connect(self._bus)
+        else:
+            logger.warning("Can't find message bus of GstPlay object")
+
+    def teardown(self) -> None:
+        if self._bus:
+            self._bus_connection.disconnect()
+            self._bus.remove_signal_watch()
+            self._bus = None
 
     def _on_play_bus_message(self, _bus: Gst.Bus, msg: GstPlay.PlayMessage) -> None:
         match GstPlay.PlayMessage.parse_type(msg):

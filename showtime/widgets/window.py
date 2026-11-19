@@ -33,11 +33,16 @@ from showtime import (
     state_settings,
     system,
 )
-from showtime.play import Messenger, MissingPlugin, gst_play_setup
+from showtime.play import (
+    Messenger,
+    MissingPlugin,
+    gst_play_setup,
+)
 from showtime.util.connection import Connection
 from showtime.util.source import SourceId
 from showtime.utils import (
     get_file_hash_identifier,
+    get_subtitle_font_desc,
     get_title,
     lookup_action,
     nanoseconds_to_timestamp,
@@ -224,24 +229,31 @@ class Window(Adw.ApplicationWindow):
             "source-setup", self._setup_pipeline_source, self.pipeline
         )
 
-        messenger = Messenger(self.play)
+        self._messenger = Messenger(self.play)
         self._messenger_connections = [
-            Connection("state-changed", self._on_playback_state_changed, messenger),
-            Connection("duration-changed", self._on_duration_changed, messenger),
-            Connection("position-updated", self._on_position_updated, messenger),
-            Connection("seek-done", self._on_seek_done, messenger),
-            Connection("media-info-updated", self._on_media_info_updated, messenger),
-            Connection("volume-changed", self._on_volume_changed, messenger),
-            Connection("end-of-stream", self._on_end_of_stream, messenger),
-            Connection("warning", self._on_warning, messenger),
-            Connection("error", self._on_error, messenger),
-            Connection("missing-plugins", self._on_missing_plugins, messenger),
+            Connection("state-changed", self._on_playback_state_changed, self._messenger),
+            Connection("duration-changed", self._on_duration_changed, self._messenger),
+            Connection("position-updated", self._on_position_updated, self._messenger),
+            Connection("seek-done", self._on_seek_done, self._messenger),
+            Connection("media-info-updated", self._on_media_info_updated, self._messenger),
+            Connection("volume-changed", self._on_volume_changed, self._messenger),
+            Connection("end-of-stream", self._on_end_of_stream, self._messenger),
+            Connection("warning", self._on_warning, self._messenger),
+            Connection("error", self._on_error, self._messenger),
+            Connection("missing-plugins", self._on_missing_plugins, self._messenger),
         ]
 
         self._state_settings_connection = Connection(
             "changed::end-timestamp-type",
             self._on_end_timestamp_type_changed,
             state_settings,
+        )
+
+        self._update_subtitle_font_desc()
+        self._font_connection = Connection(
+            "notify::gtk-xft-dpi",
+            self._update_subtitle_font_desc,
+            Gtk.Settings.get_default(),
         )
 
         # Pending timeouts, removed in teardown
@@ -253,16 +265,6 @@ class Window(Adw.ApplicationWindow):
 
         if PROFILE == "development":
             self.add_css_class("devel")
-
-        # Unfullscreen on Escape
-
-        (esc := Gtk.ShortcutController()).add_shortcut(
-            Gtk.Shortcut.new(
-                Gtk.ShortcutTrigger.parse_string("Escape"),
-                Gtk.CallbackAction.new(lambda *_: bool(self.unfullscreen())),
-            )
-        )
-        self.add_controller(esc)
 
         self.overlay_motions = set()
         for widget in (
@@ -373,15 +375,12 @@ class Window(Adw.ApplicationWindow):
             action.activate(GLib.Variant.new_uint16(index))
 
     def teardown_playback(self) -> None:
-        """Stop playback and detach sinks before the window is destroyed.
-
-        play.stop() bring the pipeline to READY. Explicitly setting NULL
-        ensures a full teardown of all GStreamer resources.
-        """
+        """Stop playback and clear all references to self."""
         for connection in (
             self._paintable_connection,
             self._pipeline_connection,
             self._state_settings_connection,
+            self._font_connection,
             *self._messenger_connections,
         ):
             connection.disconnect()
@@ -394,6 +393,12 @@ class Window(Adw.ApplicationWindow):
             self._build_menus_source,
         ):
             source.remove()
+
+        self._messenger.teardown()
+        self._messenger = None
+
+        for name in self.list_actions():
+            self.remove_action(name)
 
         self.play.stop()
         self.play = None
@@ -419,8 +424,7 @@ class Window(Adw.ApplicationWindow):
         self.play.seek(0)
         self.unpause()
 
-    @Gtk.Template.Callback()
-    def _rotate_left(self, *_args) -> None:
+    def _rotate_left(self) -> None:
         match int((props := self.paintable.props).orientation):
             case 0:
                 props.orientation = 4
@@ -431,8 +435,7 @@ class Window(Adw.ApplicationWindow):
             case _:
                 props.orientation -= 1
 
-    @Gtk.Template.Callback()
-    def _rotate_right(self, *_args) -> None:
+    def _rotate_right(self) -> None:
         match int((props := self.paintable.props).orientation):
             case 0:
                 props.orientation = 2
@@ -575,6 +578,9 @@ class Window(Adw.ApplicationWindow):
         self.play.seek(pos)
         logger.debug("Previous play position restored: %i", pos)
 
+    def _update_subtitle_font_desc(self) -> None:
+        self.pipeline.props.subtitle_font_desc = get_subtitle_font_desc()
+
     def _on_end_timestamp_type_changed(self, *_args) -> None:
         showtime.end_timestamp_type = state_settings.get_enum("end-timestamp-type")
         self._set_end_timestamp_label(
@@ -643,8 +649,9 @@ class Window(Adw.ApplicationWindow):
         if self.overlay_motion.contains_pointer():
             self.set_cursor_from_name("none")
 
-    @Gtk.Template.Callback()
-    def _on_realize(self, *_args) -> None:
+    def do_realize(self) -> None:
+        Adw.ApplicationWindow.do_realize(self)
+
         if not (surface := self.get_surface()):
             return
 
@@ -652,6 +659,12 @@ class Window(Adw.ApplicationWindow):
             return
 
         surface.connect("notify::state", self._on_toplevel_state_changed)
+
+    def do_move_focus(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, direction: Gtk.DirectionType
+    ) -> None:
+        self._on_motion()
+        Adw.ApplicationWindow.do_move_focus(self, direction)
 
     def _on_toplevel_state_changed(self, toplevel: Gdk.Toplevel, *_args) -> None:
         if (
@@ -962,6 +975,12 @@ class Window(Adw.ApplicationWindow):
         )
 
         self._create_action(
+            "leave-fullscreen",
+            lambda *_: self.set_property("fullscreened", False),
+            ("Esc"),
+        )
+
+        self._create_action(
             "toggle-fullscreen",
             lambda *_: self.set_property("fullscreened", not self.props.fullscreened),
             ("F11", "f"),
@@ -1013,6 +1032,16 @@ class Window(Adw.ApplicationWindow):
             "increase-rate",
             lambda *_: self._step_rate(1),
             ("bracketright",),
+        )
+
+        self._create_action(
+            "rotate-left",
+            lambda *_: self._rotate_left(),
+        )
+
+        self._create_action(
+            "rotate-right",
+            lambda *_: self._rotate_right(),
         )
 
         self._create_action(
