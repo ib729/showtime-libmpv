@@ -1235,6 +1235,10 @@ class Window(Adw.ApplicationWindow):
         else:
             self.play.set_subtitle_track(index)
             self.play.set_subtitle_track_enabled(True)
+        "Fix error:  GStreamer error: clock problem. A lot of buffers are being dropped"
+        current_pos = self.play.get_position()
+        self.play.seek(current_pos)
+        self.unpause()
 
     def _on_language_selected(
         self,
@@ -1243,6 +1247,10 @@ class Window(Adw.ApplicationWindow):
     ) -> None:
         action.props.state = state
         self.play.set_audio_track(state.get_uint16())
+        "Fix error:  GStreamer error: clock problem. A lot of buffers are being dropped"
+        current_pos = self.play.get_position()
+        self.play.seek(current_pos)
+        self.unpause()
 
     def _on_toggle_loop(
         self,
