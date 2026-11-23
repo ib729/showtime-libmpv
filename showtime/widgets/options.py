@@ -16,7 +16,7 @@ from gi.repository import (
 )
 
 from showtime import PREFIX, state_settings
-from showtime.utils import lookup_action
+from showtime.utils import lookup_action, nanoseconds_to_timestamp
 
 
 @Gtk.Template.from_resource(f"{PREFIX}/gtk/options.ui")
@@ -32,6 +32,28 @@ class Options(Adw.Bin):
     subtitles_menu: Gio.Menu = Gtk.Template.Child()
 
     rate = GObject.Property(type=str)
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._chapters_menu = Gio.Menu()
+        self._chapters_section = Gio.Menu()
+        self.popover.get_menu_model().insert_section(1, None, self._chapters_section)
+
+    def set_chapters(self, chapters: list[tuple[int, str | None]]) -> None:
+        if not chapters:
+            self._chapters_section.remove_all()
+        self._chapters_menu.remove_all()
+        for index, (start, title) in enumerate(chapters, 1):
+            stamp = nanoseconds_to_timestamp(start)
+            name = (title or _("Chapter {}").format(index)).replace("_", "__")
+            label = f"{stamp}  {name}"
+            item = Gio.MenuItem.new(label, None)
+            item.set_action_and_target_value(
+                "win.seek-chapter", GLib.Variant.new_uint64(start)
+            )
+            self._chapters_menu.append_item(item)
+        if chapters and not self._chapters_section.get_n_items():
+            self._chapters_section.append_submenu(_("Chapters"), self._chapters_menu)
 
     def on_secondary_click_pressed(
         self,
