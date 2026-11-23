@@ -183,6 +183,9 @@ class ChapterTrack(Adw.Bin):
 def _chapter_entries(
     entries: Sequence[Gst.TocEntry],
 ) -> list[Chapter]:
+    if entries and entries[0].is_alternative():
+        entries = entries[:1]
+
     chapters = []
     for entry in entries:
         if entry.get_entry_type() == Gst.TocEntryType.CHAPTER:
@@ -354,6 +357,8 @@ class Window(Adw.ApplicationWindow):
             "source-setup", self._setup_pipeline_source, self.pipeline
         )
 
+        self._toc_chapters: list[Chapter] = []
+        self._chapter_scope = Gst.TocScope.GLOBAL
         self._chapters: list[Chapter] = []
         self._chapter_starts: list[int] = []
         self._chapter_generation = 0
@@ -476,6 +481,7 @@ class Window(Adw.ApplicationWindow):
 
         self._chapter_generation += 1
         self._chapter_source_generation = None
+        self._chapter_scope = Gst.TocScope.GLOBAL
         self._seek_drag_position = None
         self._seek_drag.reset()
         self._seeking_source.remove()
@@ -894,7 +900,7 @@ class Window(Adw.ApplicationWindow):
 
     def _on_duration_changed(self, _obj, dur: int) -> None:
         self._set_end_timestamp_label(self.play.props.position, dur)
-        self._update_chapter_marks(dur)
+        self._update_chapters(dur)
 
     def _on_chapter_source_setup(self, *_args) -> None:
         self._chapter_source_generation = self._chapter_generation
@@ -905,9 +911,10 @@ class Window(Adw.ApplicationWindow):
             return
 
         toc, _updated = message.parse_toc()
-        if toc is None or toc.get_scope() != Gst.TocScope.GLOBAL:
+        if toc is None:
             return
 
+        scope = toc.get_scope()
         by_start = {
             chapter.start: chapter for chapter in _chapter_entries(toc.get_entries() or ())
         }
@@ -920,26 +927,37 @@ class Window(Adw.ApplicationWindow):
                 window is not None
                 and window._chapter_generation == generation
                 and window.play is not None
+                and (
+                    scope == Gst.TocScope.CURRENT
+                    or window._chapter_scope == Gst.TocScope.GLOBAL
+                )
             ):
+                window._chapter_scope = scope
                 window._set_chapters(chapters)
 
         GLib.idle_add(show_chapters)
 
     def _set_chapters(self, chapters: list[Chapter]) -> None:
-        if chapters == self._chapters:
-            return
+        self._toc_chapters = chapters
+        self._update_chapters(self.play.props.duration)
 
-        self._chapters = chapters
-        self._chapter_starts = [chapter.start for chapter in chapters]
-        self.options.set_chapters([(chapter.start, chapter.title) for chapter in chapters])
-        self._update_chapter_marks(self.play.props.duration)
-
-    def _update_chapter_marks(self, duration: int) -> None:
-        stops = (
-            tuple(start / duration for start in self._chapter_starts if start < duration)
-            if 0 < duration < Gst.CLOCK_TIME_NONE else ()
+    def _update_chapters(self, duration: int) -> None:
+        chapters = (
+            [chapter for chapter in self._toc_chapters if chapter.start < duration]
+            if 0 < duration < Gst.CLOCK_TIME_NONE
+            else []
         )
-        self._chapter_track.set_stops(stops)
+        if chapters != self._chapters:
+            self._chapters = chapters
+            self._chapter_starts = [chapter.start for chapter in chapters]
+            self.options.set_chapters(
+                [(chapter.start, chapter.title) for chapter in chapters]
+            )
+            self._seek_preview.set_visible(False)
+
+        self._chapter_track.set_stops(
+            tuple(chapter.start / duration for chapter in chapters)
+        )
 
     def _setup_seek_preview(self) -> None:
         scale = self.seek_scale
@@ -1129,7 +1147,12 @@ class Window(Adw.ApplicationWindow):
             self._on_motion()
 
     def _seek_chapter(self, _action: Gio.SimpleAction, target: GLib.Variant) -> None:
-        if self.play and (position := target.get_uint64()) in self._chapter_starts:
+        position = target.get_uint64()
+        if (
+            self.play
+            and position < self.play.props.duration < Gst.CLOCK_TIME_NONE
+            and position in self._chapter_starts
+        ):
             self._commit_seek(position)
 
     def _on_position_updated(self, _obj, pos: int) -> None:
