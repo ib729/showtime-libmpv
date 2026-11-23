@@ -2,12 +2,14 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026 kramo
 
 import json
+from bisect import bisect_left
 from collections.abc import Callable, Sequence
 from functools import partial
 from hashlib import sha256
 from math import sqrt
 from time import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from weakref import ref
 
 from gi.repository import (
     Adw,
@@ -15,11 +17,14 @@ from gi.repository import (
     Gio,
     GLib,
     GObject,
+    Graphene,
+    Gsk,
     Gst,
     GstAudio,  # pyright: ignore[reportAttributeAccessIssue]
     GstPbutils,
     GstPlay,  # pyright: ignore[reportAttributeAccessIssue]
     Gtk,
+    Pango,
 )
 
 import showtime
@@ -70,8 +75,125 @@ SMALL_SIZE_CHANGE = 10
 
 # So that seeking isn't too rough
 SCALE_MULT = 500
+CHAPTER_SNAP_PX = 4
 
 MINUTE_IN_NS = 6e10
+
+
+class Chapter(NamedTuple):
+    start: int
+    end: int | None
+    title: str | None
+
+
+class SeekTarget(NamedTuple):
+    position: int
+    chapter_index: int | None
+    x: float
+    y: int
+
+
+class ChapterTrack(Adw.Bin):
+    """Paint chapter dots on the native seek scale while keeping its input handling."""
+
+    def __init__(self, scale: Gtk.Scale) -> None:
+        super().__init__(
+            child=scale, hexpand=scale.get_hexpand(), valign=scale.get_valign()
+        )
+        self._scale = scale
+        trough = next(child for child in scale if child.get_css_name() == "trough")
+        self._slider = next(
+            child for child in trough if child.get_css_name() == "slider"
+        )
+        self._stops: tuple[float, ...] = ()
+        self._dot_color = Adw.AccentColor.to_rgba(Adw.AccentColor.BLUE)
+
+    def set_stops(self, stops: tuple[float, ...]) -> None:
+        """Set chapter starts as fractions of the duration."""
+        if self._stops == stops:
+            return
+        self._stops = stops
+        scale = self._scale
+        scale.clear_marks()
+        for stop in stops:
+            scale.add_mark(stop * SCALE_MULT, Gtk.PositionType.TOP, None)
+        for child in scale:
+            if child.get_css_name() == "marks":
+                child.set_visible(False)
+        scale.remove_css_class("marks-before")
+        self.queue_draw()
+
+    def axis(self) -> tuple[float, float]:
+        """Return the zero-time x coordinate and the signed travel in scale coordinates."""
+        scale = self._scale
+        trough = scale.get_range_rect()
+        minimum = self._slider.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+        thumb = min(trough.width, minimum)
+        travel = trough.width - thumb
+        left = trough.x + thumb / 2
+        rtl = scale.get_flippable() and scale.get_direction() == Gtk.TextDirection.RTL
+        if scale.get_inverted() != rtl:
+            return left + travel, -travel
+        return left, travel
+
+    def is_on_thumb(self, x: float, y: float) -> bool:
+        return self._scale.pick(x, y, Gtk.PickFlags.DEFAULT) == self._slider
+
+    def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
+        """Draw small chapter dots inside the unplayed part of the native track."""
+        Adw.Bin.do_snapshot(self, snapshot)
+        scale = self._scale
+        upcoming = bisect_left(self._stops, scale.get_value() / SCALE_MULT)
+        if upcoming == len(self._stops):
+            return
+        origin = Graphene.Point().init(0, 0)
+        ok, offset = scale.compute_point(self, origin)
+        if not ok:
+            return
+        trough = scale.get_range_rect()
+        first, travel = self.axis()
+        if not travel or trough.height <= 0:
+            return
+        thumb_left, thumb_right = scale.get_slider_range()
+        left, right = trough.x, trough.x + trough.width
+        if travel > 0:
+            left = max(left, thumb_right)
+        else:
+            right = min(right, thumb_left)
+        if left >= right:
+            return
+
+        radius = min(1.5, trough.height / 3)
+        y = trough.y + trough.height / 2
+        dots = Gsk.PathBuilder.new()
+        for index in range(upcoming, len(self._stops)):
+            x = first + travel * self._stops[index]
+            dots.add_circle(Graphene.Point().init(x, y), radius)
+
+        snapshot.save()
+        snapshot.translate(offset)
+        snapshot.push_clip(
+            Graphene.Rect().init(left, trough.y, right - left, trough.height)
+        )
+        snapshot.append_fill(dots.to_path(), Gsk.FillRule.WINDING, self._dot_color)
+        snapshot.pop()
+        snapshot.restore()
+
+
+def _chapter_entries(
+    entries: Sequence[Gst.TocEntry],
+) -> list[Chapter]:
+    chapters = []
+    for entry in entries:
+        if entry.get_entry_type() == Gst.TocEntryType.CHAPTER:
+            valid, start, stop = entry.get_start_stop_times()
+            if valid and 0 <= start < Gst.CLOCK_TIME_NONE:
+                tags = entry.get_tags()
+                title = tags.get_string(Gst.TAG_TITLE)[1] if tags else None
+                end = stop if start < stop < Gst.CLOCK_TIME_NONE else None
+                chapters.append(Chapter(start, end, title))
+        chapters.extend(_chapter_entries(entry.get_sub_entries() or ()))
+    return chapters
 
 
 @Gtk.Template.from_resource(f"{PREFIX}/gtk/window.ui")
@@ -91,6 +213,7 @@ class Window(Adw.ApplicationWindow):
     missing_plugin_status_page: Adw.StatusPage = Gtk.Template.Child()
 
     video_page: Gtk.WindowHandle = Gtk.Template.Child()
+    video_overlay: Gtk.Overlay = Gtk.Template.Child()
     overlay_motion: Gtk.EventControllerMotion = Gtk.Template.Child()
     picture: Gtk.Picture = Gtk.Template.Child()
 
@@ -231,6 +354,20 @@ class Window(Adw.ApplicationWindow):
             "source-setup", self._setup_pipeline_source, self.pipeline
         )
 
+        self._chapters: list[Chapter] = []
+        self._chapter_starts: list[int] = []
+        self._chapter_generation = 0
+        self._chapter_source_generation = None
+        self._chapter_bus = self.pipeline.get_bus()
+        self._chapter_bus.enable_sync_message_emission()
+        self._chapter_bus_connection = Connection(
+            "sync-message::toc", self._on_chapter_message, self._chapter_bus
+        )
+        self._chapter_source_connection = Connection(
+            "source-setup", self._on_chapter_source_setup, self.pipeline
+        )
+        self._setup_seek_preview()
+
         self._messenger = Messenger(self.play)
         self._messenger_connections = [
             Connection("state-changed", self._on_playback_state_changed, self._messenger),
@@ -337,6 +474,13 @@ class Window(Adw.ApplicationWindow):
 
         logger.debug("Playing video: %s", uri)
 
+        self._chapter_generation += 1
+        self._chapter_source_generation = None
+        self._seek_drag_position = None
+        self._seek_drag.reset()
+        self._seeking_source.remove()
+        self._seek_preview.hide()
+        self._set_chapters([])
         self.media_info_updated = False
         self.stack.props.visible_child = self.video_page
         self.placeholder_stack.props.visible_child = self.error_status_page
@@ -378,14 +522,23 @@ class Window(Adw.ApplicationWindow):
 
     def teardown_playback(self) -> None:
         """Stop playback and clear all references to self."""
+        self._chapter_generation += 1
+        self._seek_drag_position = None
+        self._seek_preview.hide()
         for connection in (
             self._paintable_connection,
             self._pipeline_connection,
+            self._chapter_bus_connection,
+            self._chapter_source_connection,
+            *self._seek_connections,
             self._state_settings_connection,
             self._font_connection,
             *self._messenger_connections,
         ):
             connection.disconnect()
+
+        self._chapter_bus.disable_sync_message_emission()
+        self._chapter_bus = None
 
         for source in (
             self._resize_source,
@@ -638,6 +791,7 @@ class Window(Adw.ApplicationWindow):
             timestamp != self._last_reveal
             # Cursor is hovering controls
             or any(motion.props.contains_pointer for motion in self.overlay_motions)
+            or self._seek_drag_position is not None
             # Active popover
             or any(button.props.active for button in self.overlay_menu_buttons)
             # Active restore buttons
@@ -645,6 +799,7 @@ class Window(Adw.ApplicationWindow):
         ):
             return
 
+        self._seek_preview.hide()
         for widget in self.overlay_widgets:
             self._hide_overlay(widget)
 
@@ -675,6 +830,7 @@ class Window(Adw.ApplicationWindow):
             return
 
         if not focused:
+            self._seek_preview.hide()
             self._hide_overlays(self._last_reveal)
 
         self._toplevel_focused = bool(focused)
@@ -738,11 +894,249 @@ class Window(Adw.ApplicationWindow):
 
     def _on_duration_changed(self, _obj, dur: int) -> None:
         self._set_end_timestamp_label(self.play.props.position, dur)
+        self._update_chapter_marks(dur)
+
+    def _on_chapter_source_setup(self, *_args) -> None:
+        self._chapter_source_generation = self._chapter_generation
+
+    def _on_chapter_message(self, _bus: Gst.Bus, message: Gst.Message) -> None:
+        generation = self._chapter_source_generation
+        if generation is None:
+            return
+
+        toc, _updated = message.parse_toc()
+        if toc is None or toc.get_scope() != Gst.TocScope.GLOBAL:
+            return
+
+        by_start = {
+            chapter.start: chapter for chapter in _chapter_entries(toc.get_entries() or ())
+        }
+        chapters = [by_start[start] for start in sorted(by_start)]
+        window_ref = ref(self)
+
+        def show_chapters() -> None:
+            window = window_ref()
+            if (
+                window is not None
+                and window._chapter_generation == generation
+                and window.play is not None
+            ):
+                window._set_chapters(chapters)
+
+        GLib.idle_add(show_chapters)
+
+    def _set_chapters(self, chapters: list[Chapter]) -> None:
+        if chapters == self._chapters:
+            return
+
+        self._chapters = chapters
+        self._chapter_starts = [chapter.start for chapter in chapters]
+        self.options.set_chapters([(chapter.start, chapter.title) for chapter in chapters])
+        self._update_chapter_marks(self.play.props.duration)
+
+    def _update_chapter_marks(self, duration: int) -> None:
+        stops = (
+            tuple(start / duration for start in self._chapter_starts if start < duration)
+            if 0 < duration < Gst.CLOCK_TIME_NONE else ()
+        )
+        self._chapter_track.set_stops(stops)
+
+    def _setup_seek_preview(self) -> None:
+        scale = self.seek_scale
+        box = scale.get_parent()
+        previous = scale.get_prev_sibling()
+        box.remove(scale)
+        self._chapter_track = ChapterTrack(scale)
+        box.insert_child_after(self._chapter_track, previous)
+
+        self._seek_preview_layer = Gtk.Fixed(can_target=False)
+        self._seek_preview = Gtk.Box(can_target=False, visible=False)
+        self._seek_preview_content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, can_target=False, hexpand=True
+        )
+        self._seek_preview_content.add_css_class("toolbar")
+        self._seek_preview_content.add_css_class("osd")
+        self._seek_preview_title = Gtk.Label(
+            can_target=False,
+            justify=Gtk.Justification.CENTER,
+            wrap=True,
+            wrap_mode=Pango.WrapMode.WORD_CHAR,
+            max_width_chars=36,
+            visible=False,
+        )
+        self._seek_preview_title.add_css_class("heading")
+        self._seek_preview_time = Gtk.Label(can_target=False)
+        self._seek_preview_time.add_css_class("numeric")
+        self._seek_preview_content.append(self._seek_preview_title)
+        self._seek_preview_content.append(self._seek_preview_time)
+        self._seek_preview.append(self._seek_preview_content)
+        self._seek_preview_layer.put(self._seek_preview, 0, 0)
+        self.video_overlay.add_overlay(self._seek_preview_layer)
+
+        self._seek_drag_position: int | None = None
+        self._seek_drag_start_x = 0.0
+        self._seek_drag_dx = 0.0
+        self._seek_motion = Gtk.EventControllerMotion()
+        self._seek_drag = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
+        self._seek_drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self.seek_scale.add_controller(self._seek_motion)
+        self.seek_scale.add_controller(self._seek_drag)
+        self._seek_connections = [
+            Connection("enter", self._on_seek_preview_motion, self._seek_motion),
+            Connection("motion", self._on_seek_preview_motion, self._seek_motion),
+            Connection("leave", self._on_seek_preview_leave, self._seek_motion),
+            Connection("drag-begin", self._on_seek_drag_begin, self._seek_drag),
+            Connection("drag-update", self._on_seek_drag_update, self._seek_drag),
+            Connection("drag-end", self._on_seek_drag_end, self._seek_drag),
+            Connection("cancel", self._on_seek_drag_cancel, self._seek_drag),
+        ]
+
+    def _seek_target(self, x: float) -> SeekTarget | None:
+        if self.play is None:
+            return None
+        duration = self.play.props.duration
+        if not 0 < duration < Gst.CLOCK_TIME_NONE:
+            return None
+
+        trough = self.seek_scale.get_range_rect()
+        first, travel = self._chapter_track.axis()
+        if not travel:
+            return None
+        fraction = max(0.0, min((x - first) / travel, 1.0))
+        x = first + travel * fraction
+        position = round(fraction * duration)
+        index = bisect_left(self._chapter_starts, position)
+        closest = None
+        distance = CHAPTER_SNAP_PX
+        for candidate in (index - 1, index):
+            if 0 <= candidate < len(self._chapter_starts):
+                start = self._chapter_starts[candidate]
+                marker_x = first + travel * start / duration
+                if start < duration and abs(x - marker_x) <= distance:
+                    closest = candidate
+                    distance = abs(x - marker_x)
+        if closest is not None:
+            position = self._chapter_starts[closest]
+            x = first + travel * position / duration
+        return SeekTarget(position, closest, x, trough.y)
+
+    def _show_seek_preview(self, target: SeekTarget) -> None:
+        duration = self.play.props.duration
+        hours = duration >= 3600 * Gst.SECOND
+        stamp = nanoseconds_to_timestamp(target.position, hours=hours)
+        name = None
+        if (index := target.chapter_index) is not None:
+            chapter = self._chapters[index]
+            name = chapter.title or _("Chapter {}").format(index + 1)
+            end = chapter.end
+            if end is None:
+                next_index = index + 1
+                end = (
+                    self._chapter_starts[next_index]
+                    if next_index < len(self._chapter_starts)
+                    else duration
+                )
+            end_stamp = nanoseconds_to_timestamp(min(end, duration), hours=hours)
+            stamp = f"{stamp}–{end_stamp}"
+        title = self._seek_preview_title
+        if name is not None and title.get_text() != name:
+            title.set_text(name)
+        title.set_visible(name is not None)
+        if self._seek_preview_time.get_text() != stamp:
+            self._seek_preview_time.set_text(stamp)
+
+        point = Graphene.Point()
+        point.x, point.y = target.x, target.y
+        layer = self._seek_preview_layer
+        translated, anchor = self.seek_scale.compute_point(layer, point)
+        if not translated:
+            return
+
+        preview = self._seek_preview
+        preview.set_visible(True)
+        content = self._seek_preview_content
+        minimum, natural, *_ = content.measure(Gtk.Orientation.HORIZONTAL, -1)
+        viewport_width = self.video_overlay.get_width()
+        width = max(minimum, min(natural, viewport_width - 8))
+        if preview.props.width_request != width:
+            preview.set_size_request(width, -1)
+        height = content.measure(Gtk.Orientation.VERTICAL, width)[1]
+        x = max(4, min(anchor.x - width / 2, viewport_width - width - 4))
+        y = min(max(4, anchor.y - height - 6), self.video_overlay.get_height() - height - 4)
+        layer.move(preview, x, y)
+
+    def _on_seek_preview_motion(self, _motion, x: float, _y: float) -> None:
+        if self._seek_drag_position is None and (target := self._seek_target(x)):
+            self._show_seek_preview(target)
+
+    def _on_seek_preview_leave(self, *_args) -> None:
+        if self._seek_drag_position is None:
+            self._seek_preview.hide()
+
+    def _on_seek_drag_begin(self, gesture: Gtk.GestureDrag, x: float, y: float) -> None:
+        if not self._chapter_starts:
+            return
+
+        target = self._seek_target(x)
+        if target is None or not gesture.set_state(Gtk.EventSequenceState.CLAIMED):
+            return
+
+        self.seek_scale.grab_focus()
+        self._seek_drag_start_x = x
+        self._seek_drag_dx = 0.0
+        self._begin_seek()
+        self._seeking_source.remove()
+        if self._chapter_track.is_on_thumb(x, y):
+            start, travel = self._chapter_track.axis()
+            fraction = self.seek_scale.get_value() / SCALE_MULT
+            self._seek_drag_start_x = start + travel * fraction
+            self._seek_drag_position = round(self.play.props.duration * fraction)
+        else:
+            self._drag_seek_to(target)
+
+    def _on_seek_drag_update(self, _gesture, dx: float, _dy: float) -> None:
+        if (
+            self._seek_drag_position is not None
+            and dx != self._seek_drag_dx
+            and (target := self._seek_target(self._seek_drag_start_x + dx))
+        ):
+            self._seek_drag_dx = dx
+            self._drag_seek_to(target)
+
+    def _drag_seek_to(self, target: SeekTarget) -> None:
+        self._show_seek_preview(target)
+        if target.position == self._seek_drag_position:
+            return
+        self._seek_drag_position = target.position
+        duration = self.play.props.duration
+        self.seek_scale.set_value((target.position / duration) * SCALE_MULT)
+        self._commit_seek(target.position)
+
+    def _on_seek_drag_end(self, gesture: Gtk.GestureDrag, dx: float, dy: float) -> None:
+        self._on_seek_drag_update(gesture, dx, dy)
+        self._finish_seek_drag()
+        if not self._seek_motion.contains_pointer():
+            self._seek_preview.hide()
+
+    def _on_seek_drag_cancel(self, *_args) -> None:
+        self._finish_seek_drag()
+        self._seek_preview.hide()
+
+    def _finish_seek_drag(self) -> None:
+        if self._seek_drag_position is not None:
+            self._seek_drag_position = None
+            self._schedule_seek_resume()
+            self._on_motion()
+
+    def _seek_chapter(self, _action: Gio.SimpleAction, target: GLib.Variant) -> None:
+        if self.play and (position := target.get_uint64()) in self._chapter_starts:
+            self._commit_seek(position)
 
     def _on_position_updated(self, _obj, pos: int) -> None:
         dur = self.play.props.duration
 
-        self.seek_scale.set_value((pos / dur) * SCALE_MULT)
+        if self._seek_drag_position is None and dur:
+            self.seek_scale.set_value((pos / dur) * SCALE_MULT)
 
         # TODO: This can probably be done only every second instead
         self.position_label.props.label = nanoseconds_to_timestamp(pos)
@@ -750,15 +1144,26 @@ class Window(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def _seek(self, _obj, _scroll, val: float) -> None:
+        if self._seek_drag_position is not None or self.play is None:
+            return
+        duration = self.play.props.duration
+        if 0 < duration < Gst.CLOCK_TIME_NONE:
+            self._begin_seek()
+            self._commit_seek(round(duration * max(0, min(val / SCALE_MULT, 1))))
+            self._schedule_seek_resume()
+
+    def _begin_seek(self) -> None:
         if not self._seeking_source.added:
             self._seek_paused = self.paused
 
         if not self.paused:
             self.pause()
 
-        self.play.seek(max(self.play.props.duration * (val / SCALE_MULT), 0))
+    def _commit_seek(self, position: int) -> None:
+        self.play.seek(position)
         self.emit("seeked")
 
+    def _schedule_seek_resume(self) -> None:
         def post_seek() -> None:
             if not self._seek_paused:
                 self.unpause()
@@ -769,7 +1174,8 @@ class Window(Adw.ApplicationWindow):
         pos = self.play.props.position
         dur = self.play.props.duration
 
-        self.seek_scale.set_value((pos / dur) * SCALE_MULT)
+        if self._seek_drag_position is None and dur:
+            self.seek_scale.set_value((pos / dur) * SCALE_MULT)
         self.position_label.props.label = nanoseconds_to_timestamp(pos)
         self._set_end_timestamp_label(pos, dur)
         logger.debug("Seeked to %i", pos)
@@ -1096,6 +1502,10 @@ class Window(Adw.ApplicationWindow):
         toggle_loop_action.connect("activate", self._on_toggle_loop)
         toggle_loop_action.connect("change-state", self._on_toggle_loop)
         self.add_action(toggle_loop_action)
+
+        chapter_action = Gio.SimpleAction.new("seek-chapter", GLib.VariantType.new("t"))
+        chapter_action.connect("activate", self._seek_chapter)
+        self.add_action(chapter_action)
 
     def _create_action(
         self,
