@@ -16,7 +16,7 @@ gi.require_version("GstPlay", "1.0")
 gi.require_version("GstAudio", "1.0")
 gi.require_version("GstPbutils", "1.0")
 
-from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk
+from gi.repository import Adw, Gio, GLib, Gst, Gtk
 
 import showtime
 from showtime import APP_ID, VERSION, log_file, logger, state_settings, system
@@ -33,13 +33,7 @@ class Application(Adw.Application):
     """The main application singleton class."""
 
     inhibit_cookies: dict[Window, int]
-    mpris_active: bool = False
-
-    media_info_updated = GObject.Signal(name="media-info-updated")
-    state_changed = GObject.Signal(name="state-changed")
-    volume_changed = GObject.Signal(name="volume-changed")
-    rate_changed = GObject.Signal(name="rate-changed")
-    seeked = GObject.Signal(name="seeked")
+    _mpris: MPRIS | None = None
 
     def __init__(self) -> None:
         super().__init__(
@@ -142,43 +136,6 @@ class Application(Adw.Application):
         )
         state_settings.bind("is-maximized", win, "maximized", Gio.SettingsBindFlags.SET)
 
-        win.connect(
-            "media-info-updated",
-            lambda win: (
-                self.emit("media-info-updated")
-                if win == self.props.active_window
-                else None
-            ),
-        )
-
-        win.connect(
-            "volume-changed",
-            lambda win: (
-                self.emit("volume-changed") if win == self.props.active_window else None
-            ),
-        )
-
-        win.connect(
-            "rate-changed",
-            lambda win: (
-                self.emit("rate-changed") if win == self.props.active_window else None
-            ),
-        )
-
-        win.connect(
-            "seeked",
-            lambda win: (
-                self.emit("seeked") if win == self.props.active_window else None
-            ),
-        )
-
-        win.connect(
-            "notify::paused",
-            lambda win, *_: (
-                self.emit("state-changed") if win == self.props.active_window else None
-            ),
-        )
-
         if gfile:
             win.play_video(gfile)
 
@@ -199,9 +156,8 @@ class Application(Adw.Application):
         else:
             win.present()
 
-        if not self.mpris_active:
-            self.mpris_active = True
-            MPRIS(self)
+        if self._mpris is None:
+            self._mpris = MPRIS(self)
 
     def do_open(self, gfiles: Sequence[Gio.File], _n_files: int, _hint: str) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         """Open the given files."""
@@ -213,7 +169,9 @@ class Application(Adw.Application):
         try:
             self.register()  # This is so props.is_remote works
         except GLib.Error as error:
-            logger.warning("Failed to register application on the D-Bus session bus: %s", error)
+            logger.warning(
+                "Failed to register application on the D-Bus session bus: %s", error
+            )
             return -1
 
         if self.props.is_remote:

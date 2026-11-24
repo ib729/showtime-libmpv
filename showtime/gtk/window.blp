@@ -159,7 +159,7 @@ template $Window: Adw.ApplicationWindow {
                     margin-start: 12;
                     margin-end: 12;
                     valign: center;
-                    icon-name: bind $_get_play_icon(template.paused) as <string>;
+                    icon-name: bind $_get_play_icon(template.playback_state as <$PlaybackState>.state) as <string>;
                     action-name: "win.toggle-playback";
 
                     accessibility {
@@ -213,13 +213,15 @@ template $Window: Adw.ApplicationWindow {
                     }
 
                     $SoundOptions sound_options {
-                      mute: bind template.mute bidirectional;
-                      volume: bind template.volume;
+                      mute: bind template.playback_state as <$PlaybackState>.mute;
+                      volume: bind template.playback_state as <$PlaybackState>.volume;
                       schedule-volume-change => $_schedule_volume_change();
+                      schedule-mute-change => $_schedule_mute_change();
                     }
 
                     $Options options {
-                      rate: bind template.rate bidirectional no-sync-create;
+                      rate: bind template.playback_state as <$PlaybackState>.rate;
+                      rate-selected => $_on_rate_selected();
                     }
                   }
 

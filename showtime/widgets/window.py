@@ -40,6 +40,7 @@ from showtime.play import (
 )
 from showtime.util.connection import Connection
 from showtime.util.source import SourceId
+from showtime.playback_state import MediaInfo, PlaybackState
 from showtime.utils import (
     get_file_hash_identifier,
     get_subtitle_font_desc,
@@ -126,84 +127,49 @@ class Window(Adw.ApplicationWindow):
     overlay_motions: set[Gtk.EventControllerMotion]
     overlay_menu_buttons: set[Gtk.MenuButton]
 
-    stopped: bool = True
     buffering: bool = False
-
-    volume = GObject.Property(type=float)
-
-    media_info_updated = GObject.Signal(name="media-info-updated")
-    volume_changed = GObject.Signal(name="volume-changed")
-    rate_changed = GObject.Signal(name="rate-changed")
-    seeked = GObject.Signal(name="seeked")
 
     _reveal_animations: dict[Gtk.Widget, Adw.Animation]
     _hide_animations: dict[Gtk.Widget, Adw.Animation]
 
+    _playback_state: PlaybackState | None = None
     _playing_gfile: Gio.File | None = None
 
     _last_reveal: float = 0.0
 
-    _paused: bool = True
     _seek_paused: bool = False
     _prev_motion_xy: tuple[float | None, float | None] = (0, 0)
-    _prev_volume = -1
     _toplevel_focused: bool = False
 
-    @GObject.Property(type=bool, default=False)
-    def mute(self) -> bool:
-        """Get the mute state."""
-        return self.play.props.mute
+    @GObject.Property(type=PlaybackState)
+    def playback_state(self) -> PlaybackState:
+        """Get the current playback state."""
+        if self._playback_state is None:
+            self._playback_state = PlaybackState()
 
-    @mute.setter
-    def mute(self, mute: bool) -> None:
-        self.play.props.mute = mute
+        return self._playback_state
 
-    @GObject.Property(type=str)
-    def rate(self) -> str:
-        """Get the playback rate."""
-        return str(self.play.props.rate)
+    def set_rate(self, rate: float) -> None:
+        """Set the playback rate."""
+        if rate == self.playback_state.rate:
+            return
 
-    @rate.setter
-    def rate(self, rate: str) -> None:
-        self.play.props.rate = float(rate)
+        self.play.props.rate = self.playback_state.set_rate(rate)
         self.options.popover.popdown()
-        self.emit("rate-changed")
 
     def _step_rate(self, step: int) -> None:
-        rates = ("0.5", "1.0", "1.25", "1.5", "2.0")
-        current = self.rate if self.rate in rates else "1.0"
-        index = rates.index(current)
+        self.set_rate(self.playback_state.get_next_step_rate(step))
 
-        self.rate = rates[max(0, min(index + step, len(rates) - 1))]
-
-    @GObject.Property(type=bool, default=True)
-    def paused(self) -> bool:
-        """Whether the video is currently paused."""
-        return self._paused
-
-    @paused.setter
-    def paused(self, paused: bool) -> None:
-        self.stopped = self.stopped and paused
-
-        if self._paused == paused:
-            return
-
-        self._paused = paused
-
-        self.play_button.update_property(
-            (Gtk.AccessibleProperty.LABEL,),
-            (_("Play") if paused else _("Pause"),),
+    def _step_volume(self, step: float) -> None:
+        desired_volume = (
+            GstAudio.StreamVolume.convert_volume(
+                GstAudio.StreamVolumeFormat.CUBIC,
+                GstAudio.StreamVolumeFormat.LINEAR,
+                self.playback_state.volume,
+            )
+            + step
         )
-        self.play_button.props.icon_name = (
-            "media-playback-start-symbolic"
-            if paused
-            else "media-playback-pause-symbolic"
-        )
-
-        if not (app := self.props.application):
-            return
-
-        (app.uninhibit_win if paused else app.inhibit_win)(self)  # pyright: ignore[reportAttributeAccessIssue]
+        self.play.set_volume(max(0.0, min(1.0, desired_volume)))
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(decorated=system != "Darwin", **kwargs)
@@ -264,6 +230,9 @@ class Window(Adw.ApplicationWindow):
         self._buffering_source = SourceId()
         self._seeking_source = SourceId()
         self._build_menus_source = SourceId()
+
+        self.playback_state.connect("notify::state", self._on_state_changed)
+        self.playback_state.connect("notify::mute", self._on_mute_changed)
 
         if PROFILE == "development":
             self.add_css_class("devel")
@@ -337,12 +306,13 @@ class Window(Adw.ApplicationWindow):
 
         logger.debug("Playing video: %s", uri)
 
-        self.media_info_updated = False
+        self.playback_state.media_info = None
         self.stack.props.visible_child = self.video_page
         self.placeholder_stack.props.visible_child = self.error_status_page
         self.select_subtitles(0)
         self.select_language(0)
-        self.rate = "1.0"
+        self.set_rate(1.0)
+        self.playback_state.position = 0
 
         self.play.props.uri = uri
         self.pause()
@@ -353,6 +323,13 @@ class Window(Adw.ApplicationWindow):
 
         if action := lookup_action(self, "show-in-files"):
             action.props.enabled = True
+
+    def toggle_play_pause(self) -> None:
+        """Toggle between play and pause states."""
+        if self.playback_state.is_playing():
+            self.pause()
+        else:
+            self.unpause()
 
     def unpause(self) -> None:
         """Start playing the current video."""
@@ -414,7 +391,7 @@ class Window(Adw.ApplicationWindow):
         )
 
         self._set_end_timestamp_label(
-            self.play.props.position, self.play.props.duration
+            self.playback_state.position, self.playback_state.get_duration()
         )
 
     @Gtk.Template.Callback()
@@ -425,6 +402,10 @@ class Window(Adw.ApplicationWindow):
     def _play_again(self, *_args) -> None:
         self.play.seek(0)
         self.unpause()
+
+    @Gtk.Template.Callback()
+    def _on_rate_selected(self, _obj, rate: float) -> None:
+        self.set_rate(rate)
 
     def _rotate_left(self) -> None:
         match int((props := self.paintable.props).orientation):
@@ -586,16 +567,18 @@ class Window(Adw.ApplicationWindow):
     def _on_end_timestamp_type_changed(self, *_args) -> None:
         showtime.end_timestamp_type = state_settings.get_enum("end-timestamp-type")
         self._set_end_timestamp_label(
-            self.play.props.position, self.play.props.duration
+            self.playback_state.position, self.playback_state.get_duration()
         )
 
-    def _set_end_timestamp_label(self, pos: int, dur: int) -> None:
+    def _set_end_timestamp_label(self, pos: int, dur: int | None) -> None:
         match showtime.end_timestamp_type:
             case 0:  # Duration
-                self.end_timestamp_button.props.label = nanoseconds_to_timestamp(dur)
+                self.end_timestamp_button.props.label = (
+                    nanoseconds_to_timestamp(dur) if dur is not None else ""
+                )
             case 1:  # Remaining
-                self.end_timestamp_button.props.label = "-" + nanoseconds_to_timestamp(
-                    dur - pos
+                self.end_timestamp_button.props.label = (
+                    "-" + nanoseconds_to_timestamp(dur - pos) if dur is not None else ""
                 )
 
     @Gtk.Template.Callback()
@@ -607,6 +590,10 @@ class Window(Adw.ApplicationWindow):
                 value,
             )
         )
+
+    @Gtk.Template.Callback()
+    def _schedule_mute_change(self, _obj, mute: bool) -> None:
+        self.playback_state.mute = mute
 
     def _set_overlay_revealed(self, widget: Gtk.Widget, reveal: bool) -> None:
         animations = self._reveal_animations if reveal else self._hide_animations
@@ -650,6 +637,9 @@ class Window(Adw.ApplicationWindow):
 
         if self.overlay_motion.contains_pointer():
             self.set_cursor_from_name("none")
+
+    def _set_seek_scale(self, pos: int, dur: int | None) -> None:
+        self.seek_scale.set_value((pos / dur) * SCALE_MULT if dur is not None else 0)
 
     def do_realize(self) -> None:
         Adw.ApplicationWindow.do_realize(self)
@@ -712,6 +702,22 @@ class Window(Adw.ApplicationWindow):
             lambda: self._hide_overlays(self._last_reveal),
         )
 
+    def _on_state_changed(self, *_args) -> None:
+        paused = not self.playback_state.is_playing()
+
+        self.play_button.update_property(
+            (Gtk.AccessibleProperty.LABEL,),
+            (_("Play") if paused else _("Pause"),),
+        )
+
+        if not (app := self.props.application):
+            return
+
+        (app.uninhibit_win if paused else app.inhibit_win)(self)  # pyright: ignore[reportAttributeAccessIssue]
+
+    def _on_mute_changed(self, *_args) -> None:
+        self.play.props.mute = self.playback_state.mute
+
     def _on_playback_state_changed(self, _obj, state: GstPlay.PlayState) -> None:
         # Only show a spinner if buffering for more than a second
         if state == GstPlay.PlayState.BUFFERING:
@@ -727,22 +733,24 @@ class Window(Adw.ApplicationWindow):
         self._buffering_source.remove()
         self._hide_overlay(self.spinner)
 
-        match state:
-            case GstPlay.PlayState.PAUSED:
-                self.paused = True
-            case GstPlay.PlayState.STOPPED:
-                self.paused = True
-                self.stopped = True
-            case GstPlay.PlayState.PLAYING:
-                self.paused = False
+        if self.playback_state.state != state:
+            self.playback_state.state = state
 
     def _on_duration_changed(self, _obj, dur: int) -> None:
-        self._set_end_timestamp_label(self.play.props.position, dur)
+        duration = dur if dur != Gst.CLOCK_TIME_NONE else None
+
+        if self.playback_state.media_info is not None:
+            self.playback_state.media_info = self.playback_state.media_info.with_length(
+                duration
+            )
+
+        self._set_end_timestamp_label(self.playback_state.position, duration)
 
     def _on_position_updated(self, _obj, pos: int) -> None:
-        dur = self.play.props.duration
+        self.playback_state.position = pos
+        dur = self.playback_state.get_duration()
 
-        self.seek_scale.set_value((pos / dur) * SCALE_MULT)
+        self._set_seek_scale(pos, dur)
 
         # TODO: This can probably be done only every second instead
         self.position_label.props.label = nanoseconds_to_timestamp(pos)
@@ -750,14 +758,19 @@ class Window(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def _seek(self, _obj, _scroll, val: float) -> None:
-        if not self._seeking_source.added:
-            self._seek_paused = self.paused
+        paused = not self.playback_state.is_playing()
+        dur = self.playback_state.get_duration()
 
-        if not self.paused:
+        if dur is None:
+            return
+
+        if not self._seeking_source.added:
+            self._seek_paused = paused
+
+        if not paused:
             self.pause()
 
-        self.play.seek(max(self.play.props.duration * (val / SCALE_MULT), 0))
-        self.emit("seeked")
+        self.play.seek(max(dur * (val / SCALE_MULT), 0))
 
         def post_seek() -> None:
             if not self._seek_paused:
@@ -765,17 +778,27 @@ class Window(Adw.ApplicationWindow):
 
         self._seeking_source.add_timeout(GLib.PRIORITY_DEFAULT, 250, post_seek)
 
-    def _on_seek_done(self, _obj) -> None:
-        pos = self.play.props.position
-        dur = self.play.props.duration
+    def _on_seek_done(self, _obj, pos: int) -> None:
+        self.playback_state.position = pos
+        self.playback_state.seeked.emit(pos)
+        dur = self.playback_state.get_duration()
 
-        self.seek_scale.set_value((pos / dur) * SCALE_MULT)
+        self._set_seek_scale(pos, dur)
         self.position_label.props.label = nanoseconds_to_timestamp(pos)
         self._set_end_timestamp_label(pos, dur)
         logger.debug("Seeked to %i", pos)
 
     def _on_media_info_updated(self, _obj, media_info: GstPlay.PlayMediaInfo) -> None:
-        self.title_label.props.label = get_title(media_info) or ""
+        dur = media_info.get_duration()
+        title = get_title(media_info) or ""
+
+        self.playback_state.media_info = MediaInfo(
+            uri=media_info.get_uri(),
+            title=title,
+            length=dur if dur != Gst.CLOCK_TIME_NONE else None,
+        )
+
+        self.title_label.props.label = title
 
         # Add a timeout to reduce things happening at once while the video is loading
         # since the user won't want to change languages/subtitles within 500ms anyway
@@ -784,19 +807,13 @@ class Window(Adw.ApplicationWindow):
             500,
             lambda: self.options.build_menus(media_info),
         )
-        self.emit("media-info-updated")
 
-    def _on_volume_changed(self, _obj) -> None:
-        vol = self.pipeline.get_volume(GstAudio.StreamVolumeFormat.CUBIC)  # pyright: ignore[reportAttributeAccessIssue]
-
-        if self._prev_volume == vol:
+    def _on_volume_changed(self, _obj, vol: float) -> None:
+        if self.playback_state.volume == vol:
             return
 
-        self._prev_volume = vol
-        self.volume = vol
+        self.playback_state.volume = vol
         self.sound_options.adjustment.props.value = vol
-
-        self.emit("volume-changed")
 
     def _on_end_of_stream(self, _obj) -> None:
         if not state_settings.get_boolean("looping"):
@@ -944,10 +961,10 @@ class Window(Adw.ApplicationWindow):
         self.close()
 
     @Gtk.Template.Callback()
-    def _get_play_icon(self, _obj, paused: bool) -> str:
+    def _get_play_icon(self, _obj, state: GstPlay.PlayState) -> str:
         return (
             "media-playback-start-symbolic"
-            if paused
+            if state != GstPlay.PlayState.PLAYING
             else "media-playback-pause-symbolic"
         )
 
@@ -990,37 +1007,39 @@ class Window(Adw.ApplicationWindow):
 
         self._create_action(
             "toggle-playback",
-            lambda *_: self.unpause() if self.paused else self.pause(),
+            lambda *_: self.toggle_play_pause(),
             ("p", "k", "space"),
         )
 
         self._create_action(
             "increase-volume",
-            lambda *_: self.play.set_volume(min(self.play.props.volume + 0.05, 1)),
+            lambda *_: self._step_volume(0.05),
             ("Up",),
         )
 
         self._create_action(
             "decrease-volume",
-            lambda *_: self.play.set_volume(max(self.play.props.volume - 0.05, 0)),
+            lambda *_: self._step_volume(-0.05),
             ("Down",),
         )
 
         self._create_action(
             "toggle-mute",
-            lambda *_: self.set_property("mute", not self.mute),
+            lambda *_: self.playback_state.toggle_mute(),
             ("m",),
         )
 
         self._create_action(
             "backwards",
-            lambda *_: self.play.seek(max(0, self.play.props.position - 1e10)),
+            lambda *_: self.play.seek(
+                max(0, self.playback_state.position - 10_000_000_000)
+            ),
             ("Left",),
         )
 
         self._create_action(
             "forwards",
-            lambda *_: self.play.seek(self.play.props.position + 1e10),
+            lambda *_: self.play.seek(self.playback_state.position + 10_000_000_000),
             ("Right",),
         )
 
