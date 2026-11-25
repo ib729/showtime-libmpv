@@ -1,0 +1,63 @@
+name: flatpak
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      APP_ID: com.ivanbelousov.showtime-libmpv
+      MANIFEST: build-aux/flatpak/com.ivanbelousov.showtime-libmpv.json
+      BUNDLE: com.ivanbelousov.showtime-libmpv-x86_64.flatpak
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache flatpak flatpak-builder
+
+      - name: Install runtime and SDK
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive -y flathub org.gnome.Platform//51 org.gnome.Sdk//51
+
+      - name: Cache build objects
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/flatpak-builder
+          key: flatpak-builder-${{ hashFiles('build-aux/flatpak/*.json') }}
+
+      - name: Build bundle
+        run: |
+          flatpak-builder --user --force-clean --ccache --jobs="$(nproc)" \
+            --repo=repo build "$MANIFEST"
+          flatpak build-bundle --arch=x86_64 \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            repo "$BUNDLE" "$APP_ID"
+          sha256sum "$BUNDLE" > "$BUNDLE.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUNDLE }}
+          path: |
+            ${{ env.BUNDLE }}
+            ${{ env.BUNDLE }}.sha256
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$BUNDLE" "$BUNDLE.sha256" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Built from $GITHUB_SHA."
