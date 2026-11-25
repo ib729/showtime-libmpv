@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="data/icons/hicolor/scalable/apps/org.gnome.Showtime.svg" width="128" height="128">
+  <img src="data/icons/hicolor/scalable/apps/com.ivanbelousov.showtime-libmpv.svg" width="128" height="128">
 
   # Video Player
 
