@@ -64,6 +64,9 @@ SCALE_MULT = 500
 
 MINUTE_IN_NS = 6e10
 
+# mpv sizes subtitles relative to a 720px-high window; UI point sizes are about half that.
+SUBTITLE_SCALE = 2.0
+
 
 @Gtk.Template.from_resource(f"{PREFIX}/gtk/window.ui")
 class Window(Adw.ApplicationWindow):
@@ -492,7 +495,9 @@ class Window(Adw.ApplicationWindow):
         if font := get_subtitle_font_desc():
             desc = Pango.FontDescription.from_string(font)
             if desc.get_family() and desc.get_size():
-                self.play.set_subtitle_font(desc.get_family(), desc.get_size() / Pango.SCALE)
+                self.play.set_subtitle_font(
+                    desc.get_family(), desc.get_size() / Pango.SCALE * SUBTITLE_SCALE
+                )
 
     def _on_end_timestamp_type_changed(self, *_args) -> None:
         showtime.end_timestamp_type = state_settings.get_enum("end-timestamp-type")
