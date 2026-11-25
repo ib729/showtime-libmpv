@@ -606,6 +606,11 @@ class Window(Adw.ApplicationWindow):
             lambda: self._hide_overlays(self._last_reveal),
         )
 
+    @Gtk.Template.Callback()
+    def _on_pointer_left(self, *_args) -> None:
+        self._prev_motion_xy = (None, None)
+        self._hide_overlays(self._last_reveal)
+
     def _on_playback_changed(self, _play, name: str) -> None:
         match name:
             case "loading" | "pause" | "paused-for-cache":

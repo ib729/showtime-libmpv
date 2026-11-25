@@ -518,6 +518,7 @@ template $Window: Adw.ApplicationWindow {
 
             EventControllerMotion overlay_motion {
               motion => $_on_motion();
+              leave => $_on_pointer_left();
             }
           };
         }
