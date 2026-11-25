@@ -3,7 +3,7 @@
 	<id>@APP_ID@</id>
 	<metadata_license>CC0-1.0</metadata_license>
 	<project_license>GPL-3.0-or-later</project_license>
-	<name>Showtime libmpv</name>
+	<name>@APP_NAME@</name>
 	<summary>Watch without distraction</summary>
 	<description>
 	  <p>An unofficial fork of GNOME Showtime that uses libmpv for playback.</p>
@@ -16,7 +16,7 @@
 		<color type="primary" scheme_preference="dark">#4b3e81</color>
 	</branding>
 	<developer id="com.ivanbelousov">
-		<name>Showtime libmpv contributors</name>
+		<name>showtime-libmpv contributors</name>
 	</developer>
 	<url type="homepage">https://github.com/ib729/showtime-libmpv</url>
 	<url type="bugtracker">https://github.com/ib729/showtime-libmpv/issues</url>
@@ -37,72 +37,9 @@
 		</screenshot>
 	</screenshots>
 	<releases>
-		<release version="52.alpha" type="development" date="2026-11-24">
+		<release version="1.0.0" type="development" date="2026-11-24">
 			<description>
 				<p>The unofficial fork switches playback to libmpv and ships under its own application identifier.</p>
-			</description>
-		</release>
-		<release version="50.0" date="2026-03-14">
-			<description>
-				<ul>
-					<li>Videos with partially-missing plugins can now be attempted to be played anyway.</li>
-					<li>Smaller quality-of-life improvements.</li>
-				</ul>
-			</description>
-		</release>
-		<release version="49.1" date="2025-11-22">
-			<description>
-				<ul>
-					<li>When the window resizes, it will now stay in the center on supported systems.</li>
-					<li>Screenshots can now be saved to a directory of your choice. This additionally fixes an issue with translated folder names and improves security.</li>
-					<li>The application name should now correctly show up in the Sound panel of Settings.</li>
-					<li>Small localization improvements for right-to-left languages.</li>
-				</ul>
-			</description>
-		</release>
-		<release version="49.0" date="2025-09-13">
-			<description>
-				<ul>
-					<li>Playback now resumes after seeking.</li>
-					<li>Improved the layout of the options menu.</li>
-					<li>The “Repeat” option now persists across a restart of the application.</li>
-					<li>Improved the experience when using multiple windows.</li>
-					<li>Fixed an issue with reopening the options menu.</li>
-					<li>Fixed not being able to seek by scrolling.</li>
-					<li>Fixed not being able to play symlinked videos.</li>
-					<li>Fixed the previous playback position sometimes not restoring.</li>
-					<li>Fixed buttons having too small of a clickable area.</li>
-					<li>Tweaked the styling of the interface.</li>
-					<li>Various improvements on the backend.</li>
-				</ul>
-			</description>
-		</release>
-		<release version="48.1" date="2025-05-03">
-			<description>
-				<ul>
-					<li>Improved the styling of the overlay. You should now be able to see more of the video.</li>
-					<li>Subtitles now render at the display’s native resolution.</li>
-					<li>Moved the spinner for buffering videos to the top right to be less distracting.</li>
-					<li>Made sure to pause the video while seeking.</li>
-					<li>Fixed the options popover not going away after picking a playback speed.</li>
-				</ul>
-			</description>
-		</release>
-		<release version="48.0" date="2025-02-01">
-			<description>
-				<ul>
-					<li>Redesigned the user interface</li>
-					<li>Added the option to manually rotate videos</li>
-					<li>Improved keyboard navigation</li>
-					<li>Improved volume adjustment</li>
-					<li>Improved hardware acceleration</li>
-					<li>Fixed numerous bugs</li>
-				</ul>
-			</description>
-		</release>
-		<release version="46.3" date="2024-07-09">
-		    <description>
-				<p>Initial release</p>
 			</description>
 		</release>
 	</releases>

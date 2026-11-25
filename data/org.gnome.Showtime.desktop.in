@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Showtime libmpv
+Name=@APP_NAME@
 Comment=Play videos
 Exec=@BIN_NAME@ --new-window %U
 Icon=@APP_ID@

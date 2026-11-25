@@ -1,6 +1,6 @@
 project(
     'showtime-libmpv',
-    version: '52.alpha',
+    version: '1.0.0',
     meson_version: '>= 1.8.0',
     default_options: [
         'warning_level=2',
@@ -48,6 +48,7 @@ else
 endif
 conf.set('VERSION', meson.project_version())
 conf.set('APP_ID', app_id)
+conf.set('APP_NAME', 'Video Player (libmpv)')
 conf.set('BIN_NAME', bin_name)
 conf.set('PREFIX', prefix)
 conf.set('PROFILE', profile)

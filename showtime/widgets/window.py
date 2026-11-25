@@ -927,7 +927,9 @@ class Window(Adw.ApplicationWindow):
         about = Adw.AboutDialog.new_from_appdata(
             f"{PREFIX}/{APP_ID}.metainfo.xml", VERSION
         )
+        about.props.version = f"v{VERSION}"
         about.props.developers = ["kramo https://kramo.page"]
+        about.add_credit_section(_("Contributors"), ["Ivan Belousov"])
         about.props.designers = [
             "Tobias Bernard https://tobiasbernard.com/",
             "Allan Day https://blogs.gnome.org/aday/",
