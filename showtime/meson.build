@@ -26,7 +26,7 @@ gnome.compile_resources(
     gresource_bundle: true,
     install: true,
     install_dir: pkgdatadir,
-    dependencies: blueprints,
+    dependencies: [blueprints, appstream_file],
 )
 
 configure_file(
@@ -64,12 +64,6 @@ showtime_sources = [
     'utils.py',
 ]
 
-py_installation.install_sources(
-    showtime_widgets_sources,
-    subdir: 'showtime/widgets',
-)
-py_installation.install_sources(
-    showtime_util_sources,
-    subdir: 'showtime/util',
-)
-py_installation.install_sources(showtime_sources, subdir: 'showtime')
+install_data(showtime_widgets_sources, install_dir: pkgdatadir / 'showtime/widgets')
+install_data(showtime_util_sources, install_dir: pkgdatadir / 'showtime/util')
+install_data(showtime_sources, install_dir: pkgdatadir / 'showtime')

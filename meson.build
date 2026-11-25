@@ -1,5 +1,5 @@
 project(
-    'showtime',
+    'showtime-libmpv',
     version: '52.alpha',
     meson_version: '>= 1.8.0',
     default_options: [
@@ -30,19 +30,14 @@ test_env = environment()
 test_env.prepend('PYTHONPATH', meson.current_source_dir() / 'showtime')
 test('libmpv playback', py_installation, args: ['-B', files('tests/test_playback.py')], env: test_env)
 
-python_dir = join_paths(get_option('prefix'), py_installation.get_install_dir())
-pkgdatadir = get_option('prefix') / get_option('datadir') / meson.project_name()
-
+bin_name = meson.project_name()
+pkgdatadir = get_option('prefix') / get_option('datadir') / bin_name
 profile = get_option('profile')
+app_id = 'com.ivanbelousov.showtime-libmpv'
 if profile == 'development'
-    app_id = 'org.gnome.Showtime.Devel'
-    prefix = '/org/gnome/Showtime/Devel'
-elif profile == 'release'
-    app_id = 'org.gnome.Showtime'
-    prefix = '/org/gnome/Showtime'
+    app_id += '-devel'
 endif
-
-bin_name = 'showtime'
+prefix = '/' + app_id.replace('.', '/').replace('-', '_')
 
 conf = configuration_data()
 python_exec = get_option('python_exec')

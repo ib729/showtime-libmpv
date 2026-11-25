@@ -22,7 +22,7 @@ logger = getLogger("showtime")
 schema = Gio.Settings.new(APP_ID)
 state_settings = Gio.Settings.new(APP_ID + ".State")
 
-state_path = Path(GLib.get_user_state_dir(), "showtime")
+state_path = Path(GLib.get_user_state_dir(), APP_ID)
 state_path.mkdir(parents=True, exist_ok=True)
 log_file = state_path / "showtime.log"
 

@@ -7,6 +7,7 @@ install_data(
 
 symbolic_dir = 'hicolor' / 'symbolic' / 'apps'
 install_data(
-    symbolic_dir / ('@0@-symbolic.svg').format(app_id),
+    symbolic_dir / 'org.gnome.Showtime-symbolic.svg',
+    rename: app_id + '-symbolic.svg',
     install_dir: get_option('datadir') / 'icons' / symbolic_dir,
 )

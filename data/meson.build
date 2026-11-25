@@ -52,7 +52,7 @@ compile_schemas = find_program(
 test(
     'Validate schema file',
     compile_schemas,
-    args: ['--strict', '--dry-run', meson.current_source_dir()],
+    args: ['--strict', '--dry-run', meson.current_build_dir()],
 )
 
 configure_file(

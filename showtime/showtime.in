@@ -31,7 +31,7 @@ if __name__ == "__main__":
     from gi.repository import Gio, GLib, Gtk
 
     GLib.set_prgname("@BIN_NAME@")
-    GLib.set_application_name(_("Video Player"))
+    GLib.set_application_name("Showtime libmpv")
     Gtk.Window.set_default_icon_name("@APP_ID@")
 
     Gio.resources_register(
