@@ -97,11 +97,6 @@ template $Window: Adw.ApplicationWindow {
                 icon-name: "dialog-error-symbolic";
                 title: _("Unable to Play Video");
               }
-
-              Adw.StatusPage missing_plugin_status_page {
-                icon-name: "puzzle-piece";
-                title: _("Missing Plugin");
-              }
             };
           };
         }
@@ -508,10 +503,8 @@ template $Window: Adw.ApplicationWindow {
               };
             }
 
-            child: GraphicsOffload graphics_offload {
-              child: Picture picture {};
-
-              black-background: true;
+            child: GLArea video {
+              can-target: false;
             };
 
             GestureClick {

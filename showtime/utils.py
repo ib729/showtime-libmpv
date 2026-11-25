@@ -6,50 +6,31 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from gi.repository import (
-    Gdk,
-    Gio,
-    GLib,
-    Graphene,
-    GstPlay,  # pyright: ignore[reportAttributeAccessIssue]
-    Gtk,
-)
-
-from showtime import logger
+from gi.repository import Gdk, Gio, GLib, Graphene, Gtk
 
 SECONDS_ONLY = 2
 
 
-def screenshot(paintable: Gdk.Paintable, native: Gtk.Native) -> Gdk.Texture | None:
-    """Take a screenshot of the current image of a `GdkPaintable`."""
-    # Copied from Workbench
-    # https://github.com/workbenchdev/Workbench/blob/1ebbe1e3915aabfd172c166c88ca23ad08861d15/src/Previewer/previewer.vala#L36
-
+def screenshot(
+    paintable: Gdk.Paintable, native: Gtk.Native, size: tuple[int, int]
+) -> GLib.Bytes | None:
+    """Capture the displayed video without the GTK controls or letterbox bars."""
+    video_width, video_height = size
     paintable = paintable.get_current_image()
-    width = paintable.get_intrinsic_width()
-    height = paintable.get_intrinsic_height()
-
-    snapshot = Gtk.Snapshot()
-    paintable.snapshot(snapshot, width, height)
-
-    if not (node := snapshot.to_node()):
-        logger.warning(
-            "Could not get node snapshot, width: %s, height: %s.", width, height
-        )
+    width, height = paintable.get_intrinsic_width(), paintable.get_intrinsic_height()
+    if not (video_width and video_height and width and height and (renderer := native.get_renderer())):
         return None
 
-    rect = Graphene.Rect()
-    rect.origin = Graphene.Point.zero()
-    size = Graphene.Size()
-    size.width = width
-    size.height = height
-    rect.size = size
-
-    return (
-        renderer.render_texture(node, rect)
-        if (renderer := native.get_renderer())
-        else None
-    )
+    # Adapted from Workbench's paintable snapshot (upstream Showtime's screenshot path).
+    # shortcut: captures at viewport resolution; use native frame capture once hwdec screenshots work reliably.
+    scale = min(width / video_width, height / video_height)
+    w, h = video_width * scale, video_height * scale
+    rect = Graphene.Rect().init((width - w) / 2, (height - h) / 2, w, h)
+    snapshot = Gtk.Snapshot()
+    paintable.snapshot(snapshot, width, height)
+    if node := snapshot.to_node():
+        return renderer.render_texture(node, rect).save_to_png_bytes()
+    return None
 
 
 def nanoseconds_to_timestamp(ns: int, *, hours: bool = False) -> str:
@@ -74,22 +55,12 @@ def nanoseconds_to_timestamp(ns: int, *, hours: bool = False) -> str:
     )
 
 
-def get_title(media_info: GstPlay.PlayMediaInfo | None) -> str | None:
-    """Get the title of the video from a `GstPlayMediaInfo`."""
-    return (
-        (
-            title
-            if (title := media_info.get_title())
-            and title
-            not in (
-                "Video",
-                "Audio",
-            )
-            else Path(unquote(urlparse(media_info.get_uri()).path)).stem
-        )
-        if media_info
-        else None
-    )
+def get_title(title: str | None, uri: str | None) -> str | None:
+    """Prefer the media title over the filename."""
+    path = Path(unquote(urlparse(uri).path)) if uri else None
+    if title and title not in {"Video", "Audio"} and (not path or title != path.name):
+        return title
+    return path.stem if path else None
 
 
 def lookup_action(action_map: object, name: str) -> Gio.SimpleAction | None:
@@ -125,14 +96,14 @@ def get_subtitle_font_desc() -> str | None:
 
 def get_file_hash_identifier(uri: str) -> str:
     """Create a SHA256 hash using the file path."""
-    if os.getenv('FLATPAK_ID') is None:
-        return sha256(uri.encode("utf-8")).hexdigest()
-
-    current_file = Gio.File.new_for_uri(uri)
-    file_path = current_file.query_info(
-        "xattr::document-portal.host-path",
-        Gio.FileQueryInfoFlags.NONE,
-        None
-    ).get_attribute_as_string("xattr::document-portal.host-path")
+    file_path = uri
+    if os.getenv("FLATPAK_ID") and uri.startswith("file:"):
+        try:
+            file_info = Gio.File.new_for_uri(uri).query_info(
+                "xattr::document-portal.host-path", Gio.FileQueryInfoFlags.NONE
+            )
+            file_path = file_info.get_attribute_as_string("xattr::document-portal.host-path") or uri
+        except GLib.Error:
+            pass
 
     return sha256(file_path.encode("utf-8")).hexdigest()

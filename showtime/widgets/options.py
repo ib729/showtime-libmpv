@@ -11,7 +11,6 @@ from gi.repository import (
     Gio,
     GLib,
     GObject,
-    GstPlay,  # pyright: ignore[reportAttributeAccessIssue]
     Gtk,
 )
 
@@ -66,64 +65,52 @@ class Options(Adw.Bin):
 
         self.popover.connect("closed", closed)
 
-    def build_menus(self, media_info: GstPlay.PlayMediaInfo) -> None:
-        """Fill up the menu with subtitles and languages."""
+    def build_menus(self, tracks: list[dict]) -> None:
+        """Fill the menus with mpv's track IDs and actual selections."""
         self.language_menu.remove_all()
         self.subtitles_menu.remove_all()
+        self.subtitles_menu.append(_("None"), "win.select-subtitles(int32 0)")
+        selected = {"audio": 0, "sub": 0}
+        has_audio = False
+        for track in tracks:
+            kind = track["type"]
+            if kind not in selected:
+                continue
+            language = self._track_text(track.get("lang"))
+            title = self._track_text(track.get("title"))
+            track_id = track["id"]
+            if track.get("selected"):
+                selected[kind] = track_id
+            if kind == "audio":
+                has_audio = True
+                if not language and (channels := track.get("demux-channel-count")):
+                    language = ngettext(
+                        # Translators: The variable is the number of channels
+                        # in an audio track
+                        "Undetermined, {} Channel",
+                        "Undetermined, {} Channels",
+                        channels,
+                    ).format(channels)
+                menu, action = self.language_menu, "select-language"
+                language = language or _("Undetermined")
+            else:
+                menu, action = self.subtitles_menu, "select-subtitles"
+                language = language or _("Undetermined Language")
+            label = f"{language} - {title}" if title and title != language else language
+            menu.append(label, f"win.{action}(int32 {track_id})")
 
-        langs = 0
-        for index, stream in enumerate(media_info.get_audio_streams()):
-            has_title, title = stream.get_tags().get_string("title")
-            language = (
-                stream.get_language()
-                or ngettext(
-                    # Translators: The variable is the number of channels
-                    # in an audio track
-                    "Undetermined, {} Channel",
-                    "Undetermined, {} Channels",
-                    channels,
-                ).format(channels)
-                if (channels := stream.get_channels()) > 0
-                else _("Undetermined")
-            )
-
-            if (title is not None) and (title == language):
-                title = None
-
-            self.language_menu.append(
-                f"{language}{(' - ' + title) if (has_title and title) else ''}",
-                f"win.select-language(uint16 {index})",
-            )
-            langs += 1
-
-        if not langs:
+        if not has_audio:
             self.language_menu.append(_("No Audio"), "nonexistent.action")
-            # HACK: This is to make the item insensitive
-            # I don't know if there is a better way to do this
-
-        self.subtitles_menu.append(
-            _("None"), f"win.select-subtitles(uint16 {GLib.MAXUINT16})"
-        )
-
-        subs = 0
-        for index, stream in enumerate(media_info.get_subtitle_streams()):
-            has_title, title = stream.get_tags().get_string("title")
-            if has_title and title:
-                title = unquote(title)
-            language = stream.get_language() or _("Undetermined Language")
-            if language:
-                language = unquote(language)
-
-            self.subtitles_menu.append(
-                f"{language}{(' - ' + title) if (has_title and title) else ''}",
-                f"win.select-subtitles(uint16 {index})",
-            )
-            subs += 1
-
-        if not subs and (action := lookup_action(self.props.root, "select-subtitles")):
-            action.activate(GLib.Variant.new_uint16(GLib.MAXUINT16))
-
         self.subtitles_menu.append(_("Add Subtitle File…"), "win.choose-subtitles")
+        for kind, name in (("audio", "select-language"), ("sub", "select-subtitles")):
+            if action := lookup_action(self.props.root, name):
+                action.set_state(GLib.Variant.new_int32(selected[kind]))
+
+    @staticmethod
+    def _track_text(value: str | bytes | None) -> str:
+        if isinstance(value, bytes):
+            value = value.decode(errors="replace")
+        return unquote(value or "")
 
     def _on_toggle_loop(self, action: Gio.SimpleAction, _state: GLib.Variant) -> None:
         value = not action.props.state.get_boolean()

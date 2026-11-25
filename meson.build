@@ -17,6 +17,18 @@ gnome = import('gnome')
 python = import('python')
 
 py_installation = python.find_installation('python3')
+mpv_check = run_command(
+    py_installation, '-c',
+    'from mpv import MPV_VERSION, MpvGlGetProcAddressFn, MpvRenderContext; assert MPV_VERSION >= (2, 3)',
+    check: false,
+)
+if mpv_check.returncode() != 0
+    error('Showtime requires python-mpv and libmpv >= 0.38: ' + mpv_check.stderr().strip())
+endif
+
+test_env = environment()
+test_env.prepend('PYTHONPATH', meson.current_source_dir() / 'showtime')
+test('libmpv playback', py_installation, args: ['-B', files('tests/test_playback.py')], env: test_env)
 
 python_dir = join_paths(get_option('prefix'), py_installation.get_install_dir())
 pkgdatadir = get_option('prefix') / get_option('datadir') / meson.project_name()

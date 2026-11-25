@@ -6,18 +6,17 @@
 # https://gitlab.gnome.org/GNOME/gnome-music/-/blob/6a32efb74ff4107d1e4a288184e21c43f5dd877f/gnomemusic/mpris.py
 
 import re
-from functools import partial
+from hashlib import sha256
 from typing import Any
 
 from gi.repository import (
     Gio,
     GLib,
-    GstAudio,  # pyright: ignore[reportAttributeAccessIssue]
-    GstPlay,  # pyright: ignore[reportAttributeAccessIssue]
     Gtk,
 )
 
 from showtime import APP_ID, PREFIX, logger
+from showtime.play import Playback
 from showtime.utils import get_title
 from showtime.widgets.window import Window
 
@@ -245,7 +244,7 @@ class MPRIS(DBusInterface):
         return win if isinstance(win := self._app.get_active_window(), Window) else None
 
     @property
-    def play(self) -> GstPlay.Play | None:
+    def play(self) -> Playback | None:
         """Play the video."""
         if not self.win:
             return None
@@ -275,19 +274,22 @@ class MPRIS(DBusInterface):
 
         return "Playing"
 
-    def _get_metadata(self) -> dict[str, GLib.Variant]:
-        if (not self.play) or (not (media_info := self.play.get_media_info())):
-            return {
-                "mpris:trackid": GLib.Variant("o", f"{PREFIX}/TrackList/CurrentTrack")
-            }
+    def _track_id(self) -> str:
+        if not (self.play and self.play.ready and self.play.uri):
+            return "/org/mpris/MediaPlayer2/TrackList/NoTrack"
+        digest = sha256(self.play.uri.encode()).hexdigest()
+        return f"{PREFIX}/TrackList/{digest}"
 
-        return {
-            "xesam:url": GLib.Variant("s", media_info.get_uri()),
-            "mpris:length": GLib.Variant("x", int(self.play.get_duration() / 1e3)),
-            "xesam:title": GLib.Variant(
-                "s", get_title(media_info) or _("Unknown Title")
-            ),
-        }
+    def _get_metadata(self) -> dict[str, GLib.Variant]:
+        metadata = {"mpris:trackid": GLib.Variant("o", self._track_id())}
+        if (play := self.play) and play.ready and play.uri:
+            metadata.update({
+                "xesam:url": GLib.Variant("s", play.uri),
+                "xesam:title": GLib.Variant("s", get_title(play.title, play.uri) or _("Unknown Title")),
+            })
+            if play.duration:
+                metadata["mpris:length"] = GLib.Variant("x", play.duration // 1000)
+        return metadata
 
     def _on_player_state_changed(self, *_args) -> None:
         playback_status = self._get_playback_status()
@@ -301,11 +303,13 @@ class MPRIS(DBusInterface):
         )
 
     def _on_media_info_updated(self, *_args) -> None:
+        can_play = bool(self.play and self.play.ready)
         self._properties_changed(
             MPRIS.MEDIA_PLAYER2_PLAYER_IFACE,
             {
-                "CanPlay": GLib.Variant("b", True),
-                "CanPause": GLib.Variant("b", True),
+                "CanPlay": GLib.Variant("b", can_play),
+                "CanPause": GLib.Variant("b", can_play),
+                "CanSeek": GLib.Variant("b", bool(can_play and self.play.seekable)),
                 "Metadata": GLib.Variant("a{sv}", self._get_metadata()),
             },
             [],
@@ -313,7 +317,7 @@ class MPRIS(DBusInterface):
 
     def _on_active_window_changed(self, *_args) -> None:
         playback_status = self._get_playback_status()
-        can_play = (self.play.get_uri() is not None) if self.play else False
+        can_play = bool(self.play and self.play.ready)
         self._properties_changed(
             MPRIS.MEDIA_PLAYER2_PLAYER_IFACE,
             {
@@ -321,6 +325,7 @@ class MPRIS(DBusInterface):
                 "Metadata": GLib.Variant("a{sv}", self._get_metadata()),
                 "CanPlay": GLib.Variant("b", can_play),
                 "CanPause": GLib.Variant("b", can_play),
+                "CanSeek": GLib.Variant("b", bool(can_play and self.play.seekable)),
             },
             [],
         )
@@ -329,7 +334,7 @@ class MPRIS(DBusInterface):
         if not self.win:
             return
 
-        volume = self.win.pipeline.get_volume(GstAudio.StreamVolumeFormat.CUBIC)  # pyright: ignore[reportAttributeAccessIssue]
+        volume = self.win.volume
 
         self._properties_changed(
             MPRIS.MEDIA_PLAYER2_PLAYER_IFACE,
@@ -346,13 +351,13 @@ class MPRIS(DBusInterface):
         self._properties_changed(
             MPRIS.MEDIA_PLAYER2_PLAYER_IFACE,
             {
-                "Rate": GLib.Variant("d", self.play.props.rate),
+                "Rate": GLib.Variant("d", self.play.rate),
             },
             [],
         )
 
     def _on_seeked(self, *_args) -> None:
-        position_usecond = int(self.play.get_position() / 1e3) if self.play else 0
+        position_usecond = self.play.position // 1000 if self.play else 0
 
         self._dbus_emit_signal(
             "Seeked",
@@ -400,8 +405,11 @@ class MPRIS(DBusInterface):
         if (not self.win) or (not self.play):
             return
 
+        self.win.stopped = True
         self.win.pause()
-        self.play.seek(0)
+        if self.play.seekable:
+            self.play.seek(0)
+        self._on_player_state_changed()
 
     def _play(self) -> None:
         """Start or resume playback (MPRIS Method).
@@ -422,10 +430,8 @@ class MPRIS(DBusInterface):
 
         :param int offset_usecond: number of microseconds
         """
-        if not self.play:
-            return
-
-        self.play.seek(max(0, self.play.get_position() + (offset_usecond * 1e3)))
+        if self.play and self.play.seekable:
+            self.play.seek(self.play.position + offset_usecond * 1000)
 
     def _set_position(self, _track_id: str, position_usecond: int) -> None:
         """Set the current track position in microseconds (MPRIS Method).
@@ -433,10 +439,8 @@ class MPRIS(DBusInterface):
         :param str track_id: The currently playing track's identifier
         :param int position_usecond: new position in microseconds
         """
-        if not self.play:
-            return
-
-        self.play.seek(position_usecond * 1e3)
+        if self.play and self.play.seekable and _track_id == self._track_id():
+            self.play.seek(position_usecond * 1000)
 
     def _open_uri(self, _uri: str) -> None:
         """Open the Uri given as an argument (MPRIS Method).
@@ -472,13 +476,13 @@ class MPRIS(DBusInterface):
             }
 
         if interface_name == MPRIS.MEDIA_PLAYER2_PLAYER_IFACE:
-            position_usecond = int(self.play.get_position() / 1e3) if self.play else 0
-            volume = self.play.get_volume() if self.play else 0.0
-            can_play = (self.play.get_uri() is not None) if self.play else False
+            position_usecond = self.play.position // 1000 if self.play else 0
+            volume = self.play.volume if self.play else 0.0
+            can_play = bool(self.play and self.play.ready)
             return {
                 "PlaybackStatus": GLib.Variant("s", self._get_playback_status()),
                 "LoopStatus": GLib.Variant("s", "None"),
-                "Rate": GLib.Variant("d", self.play.props.rate if self.play else 0.0),
+                "Rate": GLib.Variant("d", self.play.rate if self.play else 0.0),
                 "Shuffle": GLib.Variant("b", False),
                 "Metadata": GLib.Variant("a{sv}", self._get_metadata()),
                 "Volume": GLib.Variant("d", volume),
@@ -489,7 +493,7 @@ class MPRIS(DBusInterface):
                 "CanGoPrevious": GLib.Variant("b", False),
                 "CanPlay": GLib.Variant("b", can_play),
                 "CanPause": GLib.Variant("b", can_play),
-                "CanSeek": GLib.Variant("b", True),
+                "CanSeek": GLib.Variant("b", bool(can_play and self.play.seekable)),
                 "CanControl": GLib.Variant("b", True),
             }
 
@@ -524,13 +528,8 @@ class MPRIS(DBusInterface):
                     else "2.0"
                 )
             case "Volume":
-                GLib.idle_add(
-                    partial(
-                        self.win.pipeline.set_volume,  # pyright: ignore[reportAttributeAccessIssue]
-                        GstAudio.StreamVolumeFormat.CUBIC,
-                        value,
-                    )
-                )
+                if self.play:
+                    self.play.set_volume(value)
             case "LoopStatus":
                 pass
             case "Shuffle":

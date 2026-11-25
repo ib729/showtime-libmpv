@@ -2,7 +2,6 @@
 <gresources>
   <gresource prefix="@PREFIX@/icons/scalable/actions/">
     <file preprocess="xml-stripblanks" alias="settings.svg">../data/icons/scalable/actions/settings.svg</file>
-    <file preprocess="xml-stripblanks" alias="puzzle-piece.svg">../data/icons/scalable/actions/puzzle-piece.svg</file>
     <file preprocess="xml-stripblanks" alias="skip-backwards-10.svg">../data/icons/scalable/actions/skip-backwards-10.svg</file>
     <file preprocess="xml-stripblanks" alias="skip-forward-10.svg">../data/icons/scalable/actions/skip-forward-10.svg</file>
     <file preprocess="xml-stripblanks" alias="speedometer2.svg">../data/icons/scalable/actions/speedometer2.svg</file>
