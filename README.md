@@ -1,39 +1,20 @@
-<div align="center">
-  <img src="data/icons/hicolor/scalable/apps/com.ivanbelousov.showtime-libmpv.svg" width="128" height="128">
-
-  # Showtime libmpv
-
-  Watch without distraction
-
-  <img src="data/screenshots/1.png">
-</div>
-
-Showtime libmpv is an unofficial fork of [GNOME Showtime](https://apps.gnome.org/Showtime/).
+showtime-libmpv is an unofficial fork of [GNOME Showtime](https://apps.gnome.org/Showtime/).
 It keeps Showtime's GTK4 and Libadwaita interface and replaces GStreamer with libmpv.
 The original authors, credits, history and GPL-3.0-or-later license are retained.
 
+## Install
 
-## Features
+```sh
+flatpak install --user ./com.ivanbelousov.showtime-libmpv.flatpak
+flatpak run com.ivanbelousov.showtime-libmpv
+```
 
-- Plays a single video in a borderless window
-- Supports subtitles and different playback speeds
-- Optionally resumes playback from where you last left off
-- Supports running from a file manager, or the command-line via `showtime-libmpv`
+To build the bundle yourself, install `flatpak-builder` and configure the Flathub remote:
 
-## Contributing
-
-The project follows the [GNOME Code of Conduct](https://conduct.gnome.org/).
-
-We do not accept AI-generated contributions.
-
-The interface follows the [GNOME HIG](https://developer.gnome.org/hig/).
-It is written in Python and utilizes GTK4 with [libadwaita](https://gitlab.gnome.org/GNOME/libadwaita/).
-
-Useful tutorials and links:
-### Tutorials, References
-
-- https://welcome.gnome.org/
-- https://welcome.gnome.org/app/Showtime/
-- https://pygobject.gnome.org/tutorials/index.html
-- [libmpv](https://mpv.io/) and [python-mpv](https://github.com/jaseg/python-mpv) for playback.
-- [Commit message format guide](https://handbook.gnome.org/development/commit-messages.html)
+```sh
+flatpak-builder --user --install-deps-from=flathub --repo=/tmp/showtime-libmpv-repo \
+  /tmp/showtime-libmpv-build build-aux/flatpak/com.ivanbelousov.showtime-libmpv.json
+flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+  /tmp/showtime-libmpv-repo ./com.ivanbelousov.showtime-libmpv.flatpak \
+  com.ivanbelousov.showtime-libmpv
+```

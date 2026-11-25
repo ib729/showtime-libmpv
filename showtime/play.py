@@ -56,7 +56,6 @@ class Playback(GObject.Object):
             ao="pipewire,pulse," if area is not None else "null",
             config=False,
             load_scripts=False,
-            ytdl=False,
             input_default_bindings=False,
             pause=True,
             idle=True,
@@ -68,6 +67,8 @@ class Playback(GObject.Object):
             ),
             loglevel="warn",
         )
+        if self._mpv.option_info("ytdl") is not None:
+            self._mpv.ytdl = False
         for name in self._media_properties + self._player_properties:
             self._mpv.observe_property(name, self._observe)
         self._mpv.register_event_callback(self._event)

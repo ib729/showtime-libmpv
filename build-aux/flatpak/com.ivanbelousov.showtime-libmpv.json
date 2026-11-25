@@ -1,0 +1,151 @@
+{
+  "id": "com.ivanbelousov.showtime-libmpv",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "51",
+  "sdk": "org.gnome.Sdk",
+  "command": "showtime-libmpv",
+  "separate-locales": false,
+  "finish-args": [
+    "--share=ipc",
+    "--share=network",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--filesystem=xdg-run/pipewire-0:ro"
+  ],
+  "cleanup": [
+    "/include",
+    "/lib/pkgconfig",
+    "/share/man",
+    "*.a",
+    "*.la"
+  ],
+  "modules": [
+    {
+      "name": "libXpresent",
+      "config-opts": ["--disable-static"],
+      "license-files": ["COPYING"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://www.x.org/releases/individual/lib/libXpresent-1.0.2.tar.xz",
+          "sha256": "4e5b21b4812206a4b223013606ae31170502c1043038777a1ef8f70c09d37602"
+        }
+      ]
+    },
+    {
+      "name": "libass",
+      "config-opts": ["--disable-static"],
+      "license-files": ["COPYING"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.xz",
+          "sha256": "2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc"
+        }
+      ]
+    },
+    {
+      "name": "ffmpeg",
+      "config-opts": [
+        "--enable-shared",
+        "--disable-static",
+        "--disable-doc",
+        "--disable-programs",
+        "--disable-encoders",
+        "--disable-muxers",
+        "--enable-gnutls",
+        "--enable-libdav1d",
+        "--enable-vaapi",
+        "--enable-libdrm",
+        "--enable-ffnvcodec",
+        "--enable-nvdec"
+      ],
+      "license-files": ["COPYING.LGPLv2.1", "LICENSE.md"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz",
+          "sha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433"
+        }
+      ]
+    },
+    {
+      "name": "libplacebo",
+      "buildsystem": "meson",
+      "config-opts": ["-Ddemos=false", "-Dopengl=enabled"],
+      "license-files": ["LICENSE"],
+      "post-install": [
+        "install -Dm644 ../3rdparty/glad/LICENSE \"$FLATPAK_DEST/share/licenses/$FLATPAK_ID/libplacebo/glad/LICENSE\"",
+        "install -Dm644 ../3rdparty/fast_float/LICENSE-* -t \"$FLATPAK_DEST/share/licenses/$FLATPAK_ID/libplacebo/fast_float\"",
+        "install -Dm644 ../3rdparty/Vulkan-Headers/LICENSE.md \"$FLATPAK_DEST/share/licenses/$FLATPAK_ID/libplacebo/Vulkan-Headers/LICENSE.md\"",
+        "install -Dm644 ../3rdparty/Vulkan-Headers/LICENSES/*.txt -t \"$FLATPAK_DEST/share/licenses/$FLATPAK_ID/libplacebo/Vulkan-Headers/LICENSES\""
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/haasn/libplacebo.git",
+          "tag": "v7.387.0",
+          "commit": "275f7dea27924cdd34ab2e6c20e448b6bc4fab65"
+        }
+      ]
+    },
+    {
+      "name": "libmpv",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Dbuild-date=false",
+        "-Dcplayer=false",
+        "-Dlibmpv=true",
+        "-Dlua=disabled",
+        "-Dplain-gl=enabled",
+        "-Dpipewire=enabled",
+        "-Dpulse=enabled",
+        "-Dwayland=enabled",
+        "-Dx11=enabled",
+        "-Dvaapi=enabled",
+        "-Dvaapi-wayland=enabled",
+        "-Dvaapi-x11=enabled",
+        "-Degl=enabled",
+        "-Dcuda-interop=enabled"
+      ],
+      "license-files": ["Copyright", "LICENSE.GPL", "LICENSE.LGPL"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/mpv-player/mpv/archive/v0.42.0.tar.gz",
+          "sha256": "bcfebbfa2b65a6d88dc97ea18117831072373e38b5785a2afb874ed4df5070dd"
+        }
+      ]
+    },
+    {
+      "name": "python-mpv",
+      "buildsystem": "simple",
+      "build-commands": [
+        "pip3 install --no-index --no-build-isolation --no-deps --prefix=/app ."
+      ],
+      "license-files": ["LICENSE.GPL", "LICENSE.LGPL"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://files.pythonhosted.org/packages/77/bc/6aa34c8805ff62e2fefc7d171563c60598aac215d5241186031a2c839935/python_mpv-1.0.8.tar.gz",
+          "sha256": "017fa359da059c831a94c419083491903e6d2f7c81b9841c33c196cabf4b3fe3"
+        }
+      ]
+    },
+    {
+      "name": "showtime-libmpv",
+      "builddir": true,
+      "buildsystem": "meson",
+      "run-tests": true,
+      "license-files": ["COPYING"],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../../"
+        }
+      ]
+    }
+  ]
+}
