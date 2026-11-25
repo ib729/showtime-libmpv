@@ -740,11 +740,15 @@ class Window(Adw.ApplicationWindow):
     @Gtk.Template.Callback()
     def _on_primary_click_released(self, gesture: Gtk.Gesture, n: int, *_args) -> None:
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
-        self._on_motion()
 
         if not n % 2:
             self.props.fullscreened = not self.props.fullscreened
+            return
 
+        if self.toolbar_clamp.props.can_target:
+            self._hide_overlays(self._last_reveal)
+        else:
+            self._on_motion()
     @Gtk.Template.Callback()
     def _on_secondary_click_pressed(
         self, gesture: Gtk.Gesture, _n, x: int, y: int
