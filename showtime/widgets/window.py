@@ -934,7 +934,7 @@ class Window(Adw.ApplicationWindow):
         )
         about.props.version = f"v{VERSION}"
         about.props.developers = ["kramo https://kramo.page"]
-        about.add_credit_section(_("Contributors"), ["Ivan Belousov"])
+        about.add_credit_section(_("Contributors"), ["Ivan Belousov https://ivanbelousov.com"])
         about.props.designers = [
             "Tobias Bernard https://tobiasbernard.com/",
             "Allan Day https://blogs.gnome.org/aday/",
