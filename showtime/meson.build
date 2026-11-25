@@ -1,20 +1,4 @@
-blueprints = custom_target(
-    'blueprints',
-    input: files(
-        'gtk/options.blp',
-        'gtk/shortcuts-dialog.blp',
-        'gtk/sound-options.blp',
-        'gtk/window.blp',
-    ),
-    output: '.',
-    command: [
-        find_program('blueprint-compiler'),
-        'batch-compile',
-        '@OUTPUT@',
-        '@CURRENT_SOURCE_DIR@',
-        '@INPUT@',
-    ],
-)
+subdir('gtk')
 
 gnome.compile_resources(
     'showtime',
