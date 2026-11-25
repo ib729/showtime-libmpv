@@ -14,7 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, GObject, Gtk
 
 import showtime
-from showtime import APP_ID, VERSION, log_file, logger, state_settings, system
+from showtime import APP_ID, PREFIX, VERSION, log_file, logger, state_settings, system
 
 from .mpris import MPRIS
 from .utils import get_file_hash_identifier
@@ -38,6 +38,7 @@ class Application(Adw.Application):
     def __init__(self) -> None:
         super().__init__(
             application_id=APP_ID,
+            resource_base_path=PREFIX,
             flags=Gio.ApplicationFlags.HANDLES_OPEN,
         )
 
