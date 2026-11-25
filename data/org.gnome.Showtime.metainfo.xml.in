@@ -37,7 +37,7 @@
 		</screenshot>
 	</screenshots>
 	<releases>
-		<release version="1.0.0" type="development" date="2026-11-24">
+		<release version="50.1.1-libmpv" type="development" date="2026-11-24">
 			<description>
 				<p>The unofficial fork switches playback to libmpv and ships under its own application identifier.</p>
 			</description>
