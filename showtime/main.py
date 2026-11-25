@@ -129,7 +129,7 @@ class Application(Adw.Application):
 
     def _show_shortcuts(self, *_args) -> None:
         if win := self.win:
-            builder = Gtk.Builder.new_from_resource(f"{PREFIX}/shortcuts-dialog.ui")
+            builder = Gtk.Builder.new_from_resource(f"{PREFIX}/gtk/shortcuts-dialog.ui")
             dialog = builder.get_object("shortcuts_dialog")
             assert isinstance(dialog, Adw.ShortcutsDialog)
             dialog.present(win)
