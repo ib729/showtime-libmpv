@@ -74,7 +74,8 @@
     {
       "name": "libplacebo",
       "buildsystem": "meson",
-      "config-opts": ["-Ddemos=false", "-Dlibdir=lib", "-Dopengl=enabled"],
+      "build-options": { "libdir": "/app/lib" },
+      "config-opts": ["-Ddemos=false", "-Dopengl=enabled"],
       "license-files": ["LICENSE"],
       "post-install": [
         "install -Dm644 ../3rdparty/glad/LICENSE \"$FLATPAK_DEST/share/licenses/$FLATPAK_ID/libplacebo/glad/LICENSE\"",
@@ -94,9 +95,9 @@
     {
       "name": "libmpv",
       "buildsystem": "meson",
+      "build-options": { "libdir": "/app/lib" },
       "config-opts": [
         "-Dbuild-date=false",
-        "-Dlibdir=lib",
         "-Dcplayer=false",
         "-Dlibmpv=true",
         "-Dlua=disabled",
