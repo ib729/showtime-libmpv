@@ -125,6 +125,14 @@ class Application(Adw.Application):
 
         self._create_action("new-window", lambda *_: self.activate(), ("<primary>n",))
         self._create_action("quit", lambda *_: self.quit(), ("<primary>q",))
+        self._create_action("shortcuts", self._show_shortcuts, ("<primary>question",))
+
+    def _show_shortcuts(self, *_args) -> None:
+        if win := self.win:
+            builder = Gtk.Builder.new_from_resource(f"{PREFIX}/shortcuts-dialog.ui")
+            dialog = builder.get_object("shortcuts_dialog")
+            assert isinstance(dialog, Adw.ShortcutsDialog)
+            dialog.present(win)
 
     def do_activate(self, gfile: Gio.File | None = None) -> None:
         """Create a new window, set up MPRIS."""
