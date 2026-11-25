@@ -274,6 +274,7 @@ class Window(Adw.ApplicationWindow):
 
         self._create_actions()
         self._on_volume_changed()
+        self.notify("rate")
 
     def play_video(self, gfile: Gio.File) -> None:
         """Start playing the given `GFile`."""
