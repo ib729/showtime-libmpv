@@ -2,22 +2,32 @@ showtime-libmpv is an unofficial fork of GNOME Showtime.
 It keeps Showtime's GTK4 and Libadwaita interface and replaces GStreamer with libmpv.
 The original authors, credits, history and GPL-3.0-or-later license are retained.
 
-Run this on the machine where you will build or install:
+Version 50.1.1-libmpv
+
+Install
+
+Download the x86_64 bundle and its .sha256 file from the Releases page of this repository, then run:
+
+    flatpak install --user ./com.ivanbelousov.showtime-libmpv-x86_64.flatpak
+    flatpak run com.ivanbelousov.showtime-libmpv
+
+The bundle uses the Flathub remote only to fetch the GNOME 51 runtime. FFmpeg, libmpv,
+libass and libplacebo are bundled, so playback does not depend on codecs installed on the host.
+
+Build
+
+Release bundles are currently built for x86_64. To build natively on x86_64 or ARM64,
+install flatpak-builder, configure the Flathub remote, and run from the repository root:
 
     arch=$(flatpak --default-arch)
     app=com.ivanbelousov.showtime-libmpv
-
-Build natively on an x86_64 or ARM64 Linux machine. Install flatpak-builder,
-configure the Flathub remote for your user, and run from the repository root:
-
     flatpak-builder --user --arch="$arch" --install-deps-from=flathub \
       --repo="/tmp/showtime-libmpv-repo-$arch" "/tmp/showtime-libmpv-build-$arch" \
       "build-aux/flatpak/$app.json"
     flatpak build-bundle --arch="$arch" "/tmp/showtime-libmpv-repo-$arch" \
       "./$app-$arch.flatpak" "$app"
 
-Install with the Flathub remote configured for the GNOME 51 runtime, install the bundle
-that matches your machine:
+Install the local build:
 
     flatpak install --user "./$app-$arch.flatpak"
     flatpak run "$app"
